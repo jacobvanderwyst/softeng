@@ -98,7 +98,7 @@ try {
     Write-Host ''
     Write-Host "API:        http://localhost:$Port/api/v1/health/ready"
     Write-Host "Frontend:   $(if ($FrontendOrigin) { "CORS allowed for $FrontendOrigin" } else { 'same-origin only (use -FrontendOrigin <origin> for a separate dev server)' })"
-    Write-Host 'Guide:      docs\TEAM_GUIDE.md'
+    Write-Host 'Guide:      docs\DEVELOPMENT.md'
     Write-Host ''
 
     if (-not $NoRun) {

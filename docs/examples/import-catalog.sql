@@ -1,12 +1,8 @@
 -- Example: load the degree catalog from another SQLite database into our plans database.
---
---   cd backend
---   flask --app degreeplan.wsgi db upgrade                       (creates empty tables; do NOT run dev seed)
---   python scripts\run_sql_import.py --source D:\team\their.sqlite3 ..\docs\examples\import-catalog.sql --dry-run
---   python scripts\run_sql_import.py --source D:\team\their.sqlite3 ..\docs\examples\import-catalog.sql
+-- Run it with backend/scripts/run_sql_import.py (steps: docs/DEVELOPMENT.md, section 4.2).
 --
 -- The source database is attached as `src`; our plans database is `main`. EDIT THE SOURCE TABLE AND COLUMN
--- NAMES BELOW to match your teammates' schema. The example assumes this source layout:
+-- NAMES BELOW to match the real schema. The example assumes this source layout:
 --   src.Program(ProgramID, Code, Name, TotalUnits)
 --   src.Course(CourseID, CourseCode, Title, Units, Description)
 --   src.Prerequisite(CourseID, PrereqID)
