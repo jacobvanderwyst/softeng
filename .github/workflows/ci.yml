@@ -26,7 +26,7 @@ jobs:
           python -m pip install --require-hashes -r requirements/dev.txt
           python -m pip install --no-deps -e .
       - name: Lint
-        run: ruff check src tests
+        run: ruff check src tests scripts
       - name: Type check
         run: mypy src
       - name: Static security analysis

@@ -12,6 +12,17 @@ flask --app degreeplan.wsgi users create|list|set-password|deactivate|activate|r
 flask --app degreeplan.wsgi dev seed          # development only (not registered in production)
 ```
 
+## Helper scripts (`scripts/`)
+
+| Script | Purpose |
+| --- | --- |
+| `demo.ps1` | one command: venv, migrations, sample data (random passwords shown once), start the API |
+| `run_sql_import.py` | load data from another SQLite database with `INSERT ... SELECT` SQL, in one transaction (`--dry-run`) |
+| `bulk_create_users.ps1` | create accounts from a CSV with random one-time passwords |
+| `production_smoke_test.py` | production-path check described below |
+
+Details and examples: [docs/TEAM_GUIDE.md](../docs/TEAM_GUIDE.md).
+
 ## Production smoke test
 
 ```powershell

@@ -8,11 +8,20 @@ other team members; this repository holds the backend, its deployment tooling, a
 | --- | --- |
 | `backend/` | Flask API (`degreeplan` package), migrations, tests, hash-pinned requirements |
 | `deploy/` | Windows Server deployment: service wrappers (WinSW), Caddy (TLS) template, install/backup scripts |
-| `docs/` | [Architecture](docs/ARCHITECTURE.md), [Deployment](docs/DEPLOYMENT.md), [Operations](docs/OPERATIONS.md), [Security](docs/SECURITY.md) |
+| `docs/` | **[Team guide](docs/TEAM_GUIDE.md)** (run, demo, connect frontend and database), [Architecture](docs/ARCHITECTURE.md), [Deployment](docs/DEPLOYMENT.md), [Operations](docs/OPERATIONS.md), [Security](docs/SECURITY.md) |
 | `poc/` | **Not for deployment.** Standalone login/landing-page demo server, kept for reference |
 
 Two databases (users, plans), server-side sessions, Argon2id passwords, role-scoped authorization, audit trail.
 **No secrets or accounts are stored in the repository**: see [docs/SECURITY.md](docs/SECURITY.md).
+
+## Quick start for teammates (PowerShell)
+
+```powershell
+cd backend
+.\scripts\demo.ps1          # sets everything up, prints demo passwords once, starts http://localhost:5000
+```
+
+See the **[team guide](docs/TEAM_GUIDE.md)** to demo it and to plug in your frontend and database.
 
 ## Local development (PowerShell)
 

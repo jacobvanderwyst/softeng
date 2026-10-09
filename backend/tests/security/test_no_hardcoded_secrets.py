@@ -7,7 +7,7 @@ import pytest
 BACKEND = Path(__file__).resolve().parents[2]
 REPO = BACKEND.parent
 
-SCAN_ROOTS = [BACKEND / "src", REPO / "deploy", REPO / "docs", REPO / "poc"]
+SCAN_ROOTS = [BACKEND / "src", BACKEND / "scripts", REPO / "deploy", REPO / "docs", REPO / "poc"]
 SCAN_FILES = [REPO / "README.md", BACKEND / "README.md", BACKEND / ".env.example"]
 TEXT_SUFFIXES = {".py", ".md", ".txt", ".sql", ".ps1", ".xml", ".html", ".yml", ".yaml", ".toml", ".example",
                  ".cfg", ".ini", ".json", ".env", ""}
