@@ -1,0 +1,57 @@
+# Caddy v2 reverse proxy for the degree plan tool: terminates TLS and forwards /api to the app.
+# install.ps1 renders this template into <install root>\caddy\Caddyfile (host name and data paths filled in).
+#
+# - Public host names get certificates automatically (Let's Encrypt / ZeroSSL) and renewals.
+# - For an institutional CA certificate, replace the `tls { ... }` block with:  tls <cert.pem> <key.pem>
+#   (keep the key in <data root>\secrets with the same restrictive ACLs as the app secrets).
+# - The app listens ONLY on 127.0.0.1:8000, so this proxy is the single way in.
+# - Caddy overwrites any X-Forwarded-* headers sent by clients, which is why the app can safely run with
+#   PROXY_HOPS=1.
+
+{
+	admin localhost:2019
+}
+
+@HOSTNAME@ {
+	encode zstd gzip
+
+	tls {
+		protocols tls1.2 tls1.3
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	# Access log with client IPs and paths. Cookie/Authorization headers are redacted by default:
+	# never enable `log_credentials` here.
+	log {
+		output file @DATA_ROOT_FWD@/logs/caddy-access.log {
+			roll_size 10MiB
+			roll_keep 10
+		}
+		format json
+	}
+
+	# API: small bodies only, forwarded to the app on loopback.
+	handle /api/* {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy localhost:8000 {
+			health_uri /api/v1/health/live
+			health_interval 15s
+		}
+	}
+
+	# Frontend (static files built by the frontend team). Single-page-app fallback to index.html.
+	handle {
+		root * @DATA_ROOT_FWD@/www
+		try_files {path} /index.html
+		file_server
+	}
+}

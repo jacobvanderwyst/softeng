@@ -1,0 +1,21 @@
+<!-- WinSW definition for the Caddy reverse proxy (TLS termination). Rendered by install.ps1. -->
+<service>
+  <id>DegreePlanProxy</id>
+  <name>Degree Plan Proxy (Caddy)</name>
+  <description>TLS termination and reverse proxy for the degree plan tool.</description>
+  <executable>@INSTALL_ROOT@\caddy\caddy.exe</executable>
+  <arguments>run --config @INSTALL_ROOT@\caddy\Caddyfile --adapter caddyfile</arguments>
+  <workingdirectory>@DATA_ROOT@\caddy</workingdirectory>
+  <!-- Caddy keeps certificates and its state here (the service account owns this folder). -->
+  <env name="XDG_DATA_HOME" value="@DATA_ROOT@\caddy\data"/>
+  <env name="XDG_CONFIG_HOME" value="@DATA_ROOT@\caddy\config"/>
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <log mode="roll-by-size">
+    <logpath>@DATA_ROOT@\logs</logpath>
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>

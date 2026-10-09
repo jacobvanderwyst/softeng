@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements/dev.txt
+      - name: Install (hash-pinned)
+        run: |
+          python -m pip install --require-hashes -r requirements/dev.txt
+          python -m pip install --no-deps -e .
+      - name: Lint
+        run: ruff check src tests
+      - name: Type check
+        run: mypy src
+      - name: Static security analysis
+        run: bandit -q -r src -c pyproject.toml
+      - name: Tests with coverage
+        run: pytest --cov --cov-report=term-missing:skip-covered
+      - name: Production-path smoke test (real server, secret files, proxy headers)
+        run: python scripts/production_smoke_test.py
+      - name: Vulnerable dependencies
+        run: pip-audit -r requirements/prod.txt --no-deps --disable-pip
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  poc:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: poc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -r requirements.txt
+      - run: pytest

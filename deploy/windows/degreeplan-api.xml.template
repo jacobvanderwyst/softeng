@@ -1,0 +1,31 @@
+<!--
+  WinSW (Windows Service Wrapper) definition for the API. install.ps1 renders this template.
+  No secrets belong in this file: secrets are referenced as *_FILE paths that are protected by file ACLs.
+-->
+<service>
+  <id>DegreePlanApi</id>
+  <name>Degree Plan API</name>
+  <description>Degree plan tool backend (waitress on localhost only; TLS is terminated by the reverse proxy).</description>
+  <executable>@INSTALL_ROOT@\venv\Scripts\waitress-serve.exe</executable>
+  <!--
+    The no-clear-untrusted-proxy-headers option: waitress 3 would otherwise strip the X-Forwarded headers
+    before the app sees them, and the app (PROXY_HOPS=1) needs them for the real client IP and the Origin
+    check. This is safe because waitress listens on loopback only: the proxy is the only possible client.
+    Keep in sync with backend/scripts/production_smoke_test.py.
+  -->
+  <arguments>--listen=localhost:8000 --threads=8 --channel-timeout=30 --max-request-body-size=1048576 --no-clear-untrusted-proxy-headers degreeplan.wsgi:app</arguments>
+  <workingdirectory>@DATA_ROOT@</workingdirectory>
+@ENV_BLOCK@
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <onfailure action="restart" delay="60 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <stoptimeout>15 sec</stoptimeout>
+  <log mode="roll-by-size">
+    <logpath>@DATA_ROOT@\logs</logpath>
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>8</keepFiles>
+  </log>
+</service>
