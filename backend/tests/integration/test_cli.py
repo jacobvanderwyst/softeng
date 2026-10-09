@@ -1,5 +1,6 @@
 import secrets
 import sqlite3
+from contextlib import closing
 
 import pytest
 import sqlalchemy as sa
@@ -165,7 +166,7 @@ def test_db_backup_creates_verified_copies_that_contain_the_data(app, tmp_path):
     files = sorted(p.name.split("-")[0] for p in destination.glob("*.sqlite3"))
     assert files == ["plans", "users"]
     users_copy = next(destination.glob("users-*.sqlite3"))
-    with sqlite3.connect(users_copy) as conn:
+    with closing(sqlite3.connect(users_copy)) as conn:  # `with connect()` alone does not close it
         assert conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 6
 
 
