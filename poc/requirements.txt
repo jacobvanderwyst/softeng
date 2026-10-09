@@ -1,0 +1,5 @@
+# Only needed to auto-generate the self-signed TLS cert (gen_cert.py).
+# Not needed if you supply your own --cert/--key.
+cryptography>=42
+# Tests only
+pytest>=8.0

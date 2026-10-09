@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Degree Plan Tool - Sign in</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="card">
+    <h1>Degree Plan Tool</h1>
+    <p class="sub">Sign in to continue</p>
+    {{error}}
+    <form method="post" action="/login">
+      <label>Username
+        <input name="username" required maxlength="64" autofocus autocomplete="username">
+      </label>
+      <label>Password
+        <input name="password" type="password" required maxlength="256" autocomplete="current-password">
+      </label>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

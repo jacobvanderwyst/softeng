@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Degree Plan Tool - Home</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="card">
+    <h1>Welcome, {{username}}</h1>
+    <p class="sub">Signed in as <strong>{{role}}</strong></p>
+    <p>This is the landing page. Your degree plan will appear here.</p>
+    <form method="post" action="/logout">
+      <button type="submit" class="secondary">Sign out</button>
+    </form>
+  </main>
+</body>
+</html>
