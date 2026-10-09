@@ -24,7 +24,7 @@ The script creates `backend\.venv` and installs the hash-pinned dependencies (fi
 | `-NoRun` | prepare everything but do not start the server |
 
 Sample accounts: `admin`; teachers `teacher1`, `teacher2`; students `alice`, `bob` (advised by teacher1) and `carol`
-(advised by teacher2). Passwords are random per machine and per reset and are not stored anywhere; if you lose them,
+(advised by teacher2). Passwords are random per machine and per reset and are not stored anywhere; if they are lost,
 run with `-Reset`.
 
 Development mode differs from production in three ways: the session key is random on every start (so a restart logs
@@ -114,12 +114,12 @@ To see another SQLite database's schema:
 
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print('\n'.join(r[0] for r in c.execute('select sql from sqlite_master where sql is not null')))" D:\team\their.sqlite3
+.\.venv\Scripts\python.exe -c "import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); print('\n'.join(r[0] for r in c.execute('select sql from sqlite_master where sql is not null')))" D:\data\source.sqlite3
 ```
 
-### 4.2 Path A: copy their data into this schema (recommended)
+### 4.2 Path A: copy existing data into the backend schema (recommended)
 
-Their database is only read; ours is filled by SQL you write.
+The source database is only read; the plans database is filled by the SQL statements of the import file.
 
 **Catalog** (programs, courses, prerequisites):
 
@@ -132,11 +132,11 @@ $py = ".\.venv\Scripts\python.exe"
 Remove-Item -Recurse -Force instance -ErrorAction SilentlyContinue
 & $py -m flask --app degreeplan.wsgi db upgrade
 
-# 1. copy ..\docs\examples\import-catalog.sql and edit its source table/column names to match their schema
+# 1. copy ..\docs\examples\import-catalog.sql and edit its source table/column names to match the source schema
 # 2. rehearse: runs everything, prints the resulting row counts, then rolls back
-& $py scripts\run_sql_import.py --source D:\team\their.sqlite3 ..\docs\examples\import-catalog.sql --dry-run
+& $py scripts\run_sql_import.py --source D:\data\source.sqlite3 ..\docs\examples\import-catalog.sql --dry-run
 # 3. import for real
-& $py scripts\run_sql_import.py --source D:\team\their.sqlite3 ..\docs\examples\import-catalog.sql
+& $py scripts\run_sql_import.py --source D:\data\source.sqlite3 ..\docs\examples\import-catalog.sql
 ```
 
 The import is one transaction with foreign keys enforced and re-checked at the end: any SQL error, duplicate, or
@@ -157,8 +157,8 @@ sam,student,Sam,Student,,1,tina
 .\scripts\bulk_create_users.ps1 -Csv .\people.csv -OutFile $env:USERPROFILE\new-accounts.csv
 ```
 
-Every account gets a random one-time password. The output file contains them, is readable only by you, and is never
-overwritten: hand the passwords out securely, then delete it. There is no "force change at first login" yet; users can
+Every account gets a random one-time password. The output file contains them, is readable only by the current user, and is never
+overwritten: distribute the passwords securely, then delete it. There is no "force change at first login" yet; users can
 change theirs with `POST /api/v1/auth/change-password`. On a server, add `-Cli "C:\Program Files\DegreePlan\bin\degreeplan.ps1"`
 so the script uses the production environment.
 
@@ -166,9 +166,9 @@ Existing password hashes: werkzeug-style scrypt hashes (`scrypt:32768:8:1$salt$h
 `users.password_hash` and are upgraded to Argon2id at first login. Any other format (bcrypt, MD5, plain text) cannot
 be used: create fresh accounts as above.
 
-### 4.3 Path B: use their schema directly
+### 4.3 Path B: use the existing schema directly
 
-Only if their tables must stay as they are (other tools write to them).
+Only if the existing tables must stay unchanged (for example because other tools write to them).
 
 1. **Map the names** in `backend/src/degreeplan/db/tables.py`; repositories use only those objects. Where the meaning
    differs (for example prerequisites stored as a text list), edit the matching function in
@@ -181,7 +181,7 @@ Only if their tables must stay as they are (other tools write to them).
 4. Point the backend at the files with `USERS_DATABASE_URL` / `PLANS_DATABASE_URL`
    (see [DEPLOYMENT.md](DEPLOYMENT.md#using-existing-databases)). The two must differ.
 
-Columns the backend needs but their tables lack (`password_hash`, `is_active`, ...) go into a **new** revision, not the
+Columns the backend needs but the existing tables lack (`password_hash`, `is_active`, ...) go into a **new** revision, not the
 baseline: add `migrations/<target>/versions/<target>_0002_<name>.py` with `down_revision = "<target>_0001"` and an
 `upgrade()` that uses `op.add_column(...)` (copy the structure of the baseline file).
 

@@ -3,7 +3,7 @@
 Layout: **Caddy** (TLS on 80/443) → **waitress** on `localhost:8000` → the Flask app. Both services run under
 non-administrator virtual accounts, wrapped by **WinSW**.
 
-> The scripts in `deploy\windows` are syntax-checked and their templates are rendered and validated, and the
+> The scripts in `deploy\windows` are syntax-checked and the templates they render are validated, and the
 > production configuration is exercised by `backend\scripts\production_smoke_test.py`, but the installer has not been
 > run on a real server. Do a complete dry run on a staging machine first.
 
@@ -21,7 +21,7 @@ non-administrator virtual accounts, wrapped by **WinSW**.
   (Get-FileHash C:\tools\WinSW-x64.exe -Algorithm SHA256).Hash
   (Get-FileHash C:\tools\caddy.exe -Algorithm SHA256).Hash
   ```
-- The repository checked out at the release you intend to deploy (for example `C:\src\degreeplan`).
+- The repository checked out at the release being deployed (for example `C:\src\degreeplan`).
 
 ## Install
 
@@ -55,7 +55,7 @@ are kept, code and service definitions are refreshed.
 ```
 
 - The files must already match `backend\src\degreeplan\db\tables.py`; adapt it first if names differ
-  ([DEVELOPMENT.md](DEVELOPMENT.md#43-path-b-use-their-schema-directly)).
+  ([DEVELOPMENT.md](DEVELOPMENT.md#43-path-b-use-the-existing-schema-directly)).
 - `-AdoptExistingDatabases` runs `db stamp` instead of creating tables, so no data is touched. Back up first.
 - Database files must be outside the source tree and use absolute paths; the app refuses to start otherwise.
 
@@ -77,7 +77,7 @@ $cli = "C:\Program Files\DegreePlan\bin\degreeplan.ps1"
 ```
 
 Passwords must pass the policy (12+ characters, not common, not containing the username). For many accounts use
-`backend\scripts\bulk_create_users.ps1 -Cli $cli` ([DEVELOPMENT.md](DEVELOPMENT.md#42-path-a-copy-their-data-into-this-schema-recommended)).
+`backend\scripts\bulk_create_users.ps1 -Cli $cli` ([DEVELOPMENT.md](DEVELOPMENT.md#42-path-a-copy-existing-data-into-the-backend-schema-recommended)).
 Never put a password on a command line; `--password-stdin` reads one line from stdin for automation.
 
 ## Frontend
@@ -185,5 +185,5 @@ To invalidate every session at once (suspected key leak), delete `secret_key_pre
 - **Concurrency**: one waitress process, SQLite allows one writer at a time. Plan a move to a server database if write
   load grows.
 - **Compliance**: the system holds student education records. Confirm retention, access-review and incident-notification
-  duties (for example FERPA) with your institution; the audit trail supports access reviews but is not a compliance
+  duties (for example FERPA) with the institution's compliance contacts; the audit trail supports access reviews but is not a compliance
   program.

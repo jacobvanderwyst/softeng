@@ -48,7 +48,7 @@
 		}
 	}
 
-	# Frontend (static files built by the frontend team). Single-page-app fallback to index.html.
+	# Frontend (static files from the frontend build). Single-page-app fallback to index.html.
 	handle {
 		root * @DATA_ROOT_FWD@/www
 		try_files {path} /index.html

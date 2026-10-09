@@ -25,8 +25,8 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.config.from_mapping(settings.flask_config())  # non-secret values only
 
     if settings.proxy_hops > 0:
-        # Trust exactly this many reverse proxies for client IP / scheme / host. Only valid when a proxy
-        # you control overwrites the X-Forwarded-* headers (never expose the app directly with this on).
+        # Trust exactly this many reverse proxies for client IP / scheme / host. Only valid when a trusted proxy
+        # overwrites the X-Forwarded-* headers (never expose the app directly with this on).
         hops = settings.proxy_hops
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=hops, x_proto=hops, x_host=hops)  # type: ignore[method-assign]
 

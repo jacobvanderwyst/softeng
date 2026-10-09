@@ -5,7 +5,7 @@ PROOF OF CONCEPT ONLY: NOT FOR DEPLOYMENT. The production system is `backend/` (
 has in-memory sessions, a single process and a self-signed certificate, and uses its own tiny users table.
 
 * Listens on HTTP (default 80) and HTTPS (default 443).
-* Serves only pages we have (fixed route table: no filesystem path lookups).
+* Serves only the pages in a fixed route table (no filesystem path lookups).
 * GET /           -> login page (always the first page a visitor sees)
 * POST /login     -> checks username/password against the SQLite `users` table;
                      valid -> session cookie + landing page, invalid -> login page again

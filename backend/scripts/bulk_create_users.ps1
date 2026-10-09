@@ -11,11 +11,12 @@
     advisor: students only, the username of a teacher (listed in the same CSV or already existing)
 
   Each created account gets a random password (policy-compliant). The usernames and passwords are written to
-  -OutFile, a file only YOU can read: hand them out securely and delete the file. There is no "force change on first
-  login" feature yet, so ask users to change their password after the first login (POST /api/v1/auth/change-password).
+  -OutFile, restricted to the user running the script: distribute the passwords securely, then delete the file.
+  There is no "force change on first login" feature yet, so users should change their password after the first
+  login (POST /api/v1/auth/change-password).
 
 .EXAMPLE
-  # Development (virtual environment in backend\.venv; APP_ENV and databases come from your shell/.env):
+  # Development (virtual environment in backend\.venv; APP_ENV and databases come from the shell or backend\.env):
   $env:APP_ENV = "development"
   .\scripts\bulk_create_users.ps1 -Csv .\people.csv -OutFile $env:USERPROFILE\new-accounts.csv
 
@@ -67,7 +68,7 @@ if ($DryRun) {
 }
 
 New-Item -ItemType File -Path $OutFile | Out-Null
-& icacls.exe $OutFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null   # only you can read the passwords
+& icacls.exe $OutFile /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null   # restrict the file to the current user
 Set-Content -Path $OutFile -Value 'username,password' -Encoding ascii
 
 $created = 0
@@ -98,5 +99,5 @@ foreach ($row in $ordered) {
 }
 
 Write-Host ''
-Write-Host "$created created, $($failed.Count) failed. Credentials: $OutFile (readable only by you; deliver securely, then delete)."
+Write-Host "$created created, $($failed.Count) failed. Credentials: $OutFile (readable only by the current user; distribute securely, then delete it)."
 if ($failed.Count) { Write-Host "Failed: $($failed -join ', ')" -ForegroundColor Red; exit 1 }

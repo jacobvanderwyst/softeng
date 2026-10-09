@@ -14,7 +14,7 @@
 .EXAMPLE
   .\scripts\demo.ps1                                   # first run, or reuse the existing demo database
   .\scripts\demo.ps1 -Reset                            # wipe the demo database, reseed, new passwords
-  .\scripts\demo.ps1 -FrontendOrigin http://localhost:5173   # allow the team's frontend dev server (CORS)
+  .\scripts\demo.ps1 -FrontendOrigin http://localhost:5173   # allow a separate frontend dev server (CORS)
 #>
 [CmdletBinding()]
 param(

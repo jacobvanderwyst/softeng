@@ -97,7 +97,7 @@ Actions: `auth.login` (outcomes `success`, `failure`, `locked`), `auth.logout`, 
 1. Rotate the key without keeping a fallback so every session becomes invalid
    ([DEPLOYMENT.md](DEPLOYMENT.md#session-key-rotation)).
 2. Passwords are Argon2id hashes, but treat a leaked users database as a credential exposure: reset privileged accounts
-   first, then everyone, and notify according to your policy.
+   first, then everyone, and notify according to the organization's policy.
 
 **Brute force or scraping**
 1. Look for bursts of `auth.login` `failure`/`locked` events and `429` responses; block offending addresses in the
@@ -119,7 +119,7 @@ Actions: `auth.login` (outcomes `success`, `failure`, `locked`), `auth.logout`, 
 | Login works with a tool but not in the browser | send cookies (`credentials: "include"`) and fix CORS as above |
 | `429` on login | per-IP rate limit or the username's lockout; wait out `Retry-After` (lockout default 5 minutes, doubling per extra failure up to 1 hour); locally `-Reset` clears it |
 | Logged out after restarting the local server | expected in development (random session key per start) |
-| `APP_ENV must be set` | export `APP_ENV` (`development` locally, `production` on servers); `demo.ps1` sets it for you |
+| `APP_ENV must be set` | export `APP_ENV` (`development` locally, `production` on servers); `demo.ps1` sets it automatically |
 | `Python 3.11+ was not found` | install Python from python.org with "Add to PATH" and open a new terminal |
 | PowerShell refuses to run a script from a zip | `Unblock-File .\scripts\demo.ps1` or `powershell -ExecutionPolicy Bypass -File .\scripts\demo.ps1` |
 | `dev seed` fails with a constraint error | the database is already seeded: `.\scripts\demo.ps1 -Reset` |

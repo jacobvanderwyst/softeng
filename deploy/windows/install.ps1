@@ -158,7 +158,7 @@ $appEnv = [ordered]@{
     LOG_LEVEL          = 'INFO'
     PROXY_HOPS         = $(if ($CaddyPath) { '1' } else { '0' })
 }
-# Key rotation window: a retired key stays valid for verifying existing sessions until you delete the file.
+# Key rotation window: a retired key stays valid for verifying existing sessions until the file is deleted.
 $previousKeyFile = Join-Path $dirs.Secrets 'secret_key_previous'
 if (Test-Path $previousKeyFile) { $appEnv['SECRET_KEY_FALLBACKS_FILE'] = $previousKeyFile }
 

@@ -1,14 +1,14 @@
--- Example: load the degree catalog from another SQLite database into our plans database.
+-- Example: load the degree catalog from another SQLite database into the backend's plans database.
 -- Run it with backend/scripts/run_sql_import.py (steps: docs/DEVELOPMENT.md, section 4.2).
 --
--- The source database is attached as `src`; our plans database is `main`. EDIT THE SOURCE TABLE AND COLUMN
+-- The source database is attached as `src`; the plans database is `main`. EDIT THE SOURCE TABLE AND COLUMN
 -- NAMES BELOW to match the real schema. The example assumes this source layout:
 --   src.Program(ProgramID, Code, Name, TotalUnits)
 --   src.Course(CourseID, CourseCode, Title, Units, Description)
 --   src.Prerequisite(CourseID, PrereqID)
 --   src.ProgramCourse(ProgramID, CourseID)
 --
--- Order matters (parents before children). Keeping the source ids as our ids makes the relationships carry over.
+-- Order matters (parents before children). Keeping the source ids as the new ids makes the relationships carry over.
 
 INSERT INTO programs (id, code, name, total_credits)
 SELECT ProgramID, Code, Name, TotalUnits
@@ -29,6 +29,6 @@ FROM src.ProgramCourse;
 -- Tips:
 --  * Transform values inline, for example:  SELECT ..., TRIM(Title), CAST(Units AS INTEGER) ...
 --  * Skip junk rows with WHERE, for example:  WHERE Active = 1
---  * If they use text ids (UUIDs), do not copy them into `id`: let ours auto-generate and JOIN on a code column
+--  * If the source uses text ids (UUIDs), do not copy them into `id`: let the backend generate ids and JOIN on a code column
 --    instead, for example  INSERT INTO course_prerequisites SELECT c.id, p.id FROM src.Prereq x
 --    JOIN courses c ON c.code = x.CourseCode JOIN courses p ON p.code = x.PrereqCode;

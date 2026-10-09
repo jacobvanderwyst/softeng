@@ -1,8 +1,8 @@
 """Load data from another SQLite database into the plans database with plain SQL.
 
-    python scripts/run_sql_import.py --source theirs.sqlite3 docs/examples/import-catalog.sql [--dry-run]
+    python scripts/run_sql_import.py --source source.sqlite3 docs/examples/import-catalog.sql [--dry-run]
 
-* The SOURCE database is attached read-only as ``src``; the TARGET (our plans database, default
+* The SOURCE database is attached read-only as ``src``; the TARGET (the backend's plans database, default
   ``backend/instance/plans.sqlite3``) is ``main``. Write ordinary ``INSERT INTO ... SELECT ... FROM src.<table>``
   statements in the SQL file.
 * Everything runs in ONE transaction. Foreign keys are enforced and re-checked at the end; any error or violation
@@ -62,7 +62,7 @@ def run(target: Path, source: Path, script: Path, dry_run: bool) -> int:
             if violations:
                 raise sqlite3.IntegrityError(
                     f"{len(violations)} foreign key violation(s), first in table '{violations[0][0]}' "
-                    f"(row {violations[0][1]}). Check ids in your mapping."
+                    f"(row {violations[0][1]}). Check the id mapping in the SQL file."
                 )
             totals = {t: conn.execute(f"SELECT COUNT(*) FROM main.{t}").fetchone()[0] for t in CATALOG_TABLES}  # noqa: S608
         except Exception as exc:
@@ -84,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("script", type=Path, help="SQL file with INSERT ... SELECT statements")
     parser.add_argument("--source", type=Path, required=True, help="SQLite database to read from (attached as src)")
     parser.add_argument("--target", type=Path, default=BACKEND / "instance" / "plans.sqlite3",
-                        help="our plans database (default: backend/instance/plans.sqlite3)")
+                        help="the backend's plans database (default: backend/instance/plans.sqlite3)")
     parser.add_argument("--dry-run", action="store_true", help="run everything, print counts, then roll back")
     args = parser.parse_args(argv)
     return run(args.target, args.source, args.script, args.dry_run)

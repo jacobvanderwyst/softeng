@@ -1,6 +1,6 @@
 // Minimal browser client for the degree plan API (plain ES module, no dependencies).
 //
-// What it handles for you:
+// What it handles:
 //   * credentials: "include"  -> the session cookie is sent on every request
 //   * the CSRF token          -> kept in memory (NEVER in localStorage) and sent as X-CSRF-Token on writes
 //   * JSON bodies/headers, a uniform ApiError, and a single hook for "session expired" (401)
@@ -8,7 +8,7 @@
 // Usage:
 //   import { api, configureApi } from "./api-client.js";
 //   configureApi({ baseUrl: "/api/v1", onUnauthorized: () => showLoginPage() });
-//   const user = await api.restoreSession() ?? await api.login(username, password);   // username/password from your form
+//   const user = await api.restoreSession() ?? await api.login(username, password);   // username/password from the login form
 //   const plan = await api.plans.create({ name: "My plan", program_id: 1 });
 //   const result = await api.plans.setCourse(plan.id, { course_id: 1, term_index: 1 });   // result.issues lists problems
 

@@ -111,7 +111,7 @@ only when every required course of its program is in it.
 | --- | --- | --- |
 | `401` | not logged in, session ended, or wrong credentials at login | show the login page |
 | `403` | missing/invalid CSRF token, foreign Origin, or a read-only role | refresh the token with `GET /auth/me`; otherwise hide the action |
-| `404` | not found **or not yours** | treat as not existing |
+| `404` | not found **or not accessible to the caller** | treat as not existing |
 | `409` | rule conflict (term credit limit, default 21) | show `error.message` |
 | `415` | body was not JSON | fix the `Content-Type` header |
 | `422` | validation | show `error.details[].field` and `.message` |
