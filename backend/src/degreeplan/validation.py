@@ -1,7 +1,7 @@
 """Pydantic request models + a strict JSON body parser."""
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from flask import request
 from pydantic import BaseModel, ConfigDict, Field
@@ -39,6 +39,15 @@ class PlanUpdateIn(_Strict):
 class PlanCourseIn(_Strict):
     course_id: int = Field(ge=1)
     term_index: int = Field(ge=1, le=16, description="1 = first term of the plan")
+
+
+class PlanSemesterIn(_Strict):
+    term_index: int = Field(ge=1, le=16, strict=True)
+    name: str = Field(min_length=1, max_length=120)
+
+
+class CourseProgressIn(_Strict):
+    status: Literal["Not Started", "In Progress", "Completed"]
 
 
 def parse_body(model: type[T]) -> T:

@@ -18,14 +18,22 @@ The script creates `backend\.venv` and installs the hash-pinned dependencies (fi
 
 | Option | Effect |
 | --- | --- |
+| `-Help` / `-h` | show usage, demo steps and troubleshooting; no setup or password/data changes |
 | `-Reset` | delete the local databases, reseed, new passwords |
+| `-KeepDemoPasswords` | preserve existing passwords instead of generating new ones for `alice` and `teacher1` |
 | `-FrontendOrigin http://localhost:5173` | allow that exact origin through CORS (the frontend dev server) |
 | `-Port 8080` | different port |
 | `-NoRun` | prepare everything but do not start the server |
 
 Sample accounts: `admin`; teachers `teacher1`, `teacher2`; students `alice`, `bob` (advised by teacher1) and `carol`
-(advised by teacher2). Passwords are random per machine and per reset and are not stored anywhere; if they are lost,
-run with `-Reset`.
+(advised by teacher2). On first setup, all six random passwords are printed once. On each subsequent launch,
+fresh random passwords for **alice** and **teacher1** are generated and displayed, their old sessions revoked,
+and their username lockouts cleared. Plans, progress, profiles and other accounts are preserved; password hashes
+are stored, but plaintext passwords are not saved to a file or logged.
+Copy the displayed passwords for the demo. Use `-KeepDemoPasswords` to retain manually chosen passwords or to run
+against a custom development database without these two demo accounts. The switch does not suppress initial
+account creation on a fresh/reset database. `-NoRun` still performs password setup unless `-KeepDemoPasswords` is set.
+Do not use `-Reset` just to recover a password: it deletes local demo data.
 
 Development mode differs from production in three ways: the session key is random on every start (so a restart logs
 everyone out), cookies are named `sid` and are not `Secure` (so plain `http://localhost` works), and the databases
@@ -53,7 +61,7 @@ flask --app degreeplan.wsgi run                   # add --debug for auto-reload
 | --- | --- |
 | `db` | `upgrade`, `status`, `stamp --target users\|plans`, `backup --dest <folder>` |
 | `users` | `create`, `list`, `set-password`, `deactivate`, `activate`, `revoke-sessions` |
-| `dev` | `seed` (development only; not registered when `APP_ENV=production`) |
+| `dev` | `seed`, `refresh-demo-passwords` (development only; not registered when `APP_ENV=production`) |
 
 ## 2. Tests and quality gates
 
@@ -78,6 +86,32 @@ pip-compile --generate-hashes --strip-extras --extra dev -o requirements\dev.txt
 ```
 
 ## 3. Connect the frontend
+### Included EduNav application
+
+Run `.\scripts\demo.ps1` from `backend`, then open `http://localhost:5000/`. Flask serves the pages and API on
+one origin; no separate frontend server, npm installation, build, or CORS setting is needed. Assets live in
+`backend/src/degreeplan/frontend/` so they are included in both development and installed application packages.
+Do not open the HTML directly with `file://`; it needs the running API and session cookie.
+
+Sign in as a student, create/select a saved plan, and add semesters and courses in Planner. My Degree stores
+student-reported Completed/In Progress/Not Started statuses; Dashboard and Courses use the same saved progress.
+These statuses are not official transcript records, are shared across alternate plans, and do not override the
+planner's prerequisite-order validation. Reset Progress affects all statuses for that student; Reset Planner
+affects only the selected plan. Multi-request resets reload the server state on failure and may need retrying.
+Teachers/admins enter a student ID to view authorized records read-only; the server enforces access.
+Semester indices remain stable (1–16), including after deletion; new dated semesters append in chronological order.
+Rename/reuse a term or create another plan when the highest remaining term index is 16.
+
+Existing databases are upgraded by the demo script without reseeding. The old frontend's localStorage records are
+not imported, and no hardcoded completed courses are assumed. The sample backend catalog remains demonstration
+data until replaced with an official catalog.
+
+Dependency-free frontend unit/client tests (Node 20+): `node --test tests/frontend/*.test.mjs` from the repository root.
+Optional real-browser verification: install `playwright` in the backend venv, then run
+`python scripts/frontend_smoke_test.py` from `backend` (uses installed Edge/Chrome, isolated temporary databases,
+and generated test credentials; never touches your local demo data).
+
+### Separate/custom clients
 
 Follow the client rules in [ARCHITECTURE.md](ARCHITECTURE.md#api-reference). `docs/examples/api-client.js` is a
 dependency-free ES module that implements them (cookies, CSRF header, uniform `ApiError`, a single hook for expired
@@ -105,6 +139,8 @@ so the browser sees one origin (not tested here); keep the dev server's origin i
 | plans | `course_prerequisites` | `course_id`, `prerequisite_id` (one row per prerequisite) |
 | plans | `program_requirements` | `program_id`, `course_id` |
 | plans | `plans`, `plan_courses` | created and owned by the backend |
+| plans | `plan_semesters` | `plan_id`, `term_index`, `name` (optional names and empty terms) |
+| plans | `student_course_progress` | `student_id`, `course_id`, `status`, `updated_at` (self-reported, not official) |
 | users | `users` | `username` (unique), `password_hash`, `role` (`student`/`teacher`/`admin`), `is_active` |
 | users | `students` | `user_id`, `first_name`, `last_name`, `program_id`, `advisor_id` (the teacher's id) |
 | users | `teachers` | `user_id`, `first_name`, `last_name`, `department` |

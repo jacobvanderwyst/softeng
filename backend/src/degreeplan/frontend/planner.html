@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Semester Planner | EduNav 2.0</title>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="integration.css">
+</head>
+
+<body>
+
+    <!-- NAVIGATION BAR -->
+
+    <header class="navbar">
+
+        <div class="logo">
+            <h1>EduNav 2.0</h1>
+            <span>Student Course Planner</span>
+        </div>
+
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="degree.html">My Degree</a>
+            <a href="planner.html">Planner</a>
+            <a href="courses.html">Courses</a>
+        </nav>
+
+    </header>
+
+
+    <!-- MAIN PLANNER -->
+
+    <main class="dashboard" hidden>
+
+        <section class="welcome">
+
+            <p>SEMESTER PLANNER</p>
+
+            <h2>Plan Your Next Semester</h2>
+
+            <span>
+                Build your schedule while staying on track with your degree.
+            </span>
+
+        </section>
+
+
+        <!-- PLANNER ACTIONS -->
+
+        <div class="planner-actions">
+
+            <button id="addSemesterButton">
+                + Add Semester
+            </button>
+
+            <button id="resetPlannerButton" class="reset-button">
+                Reset Planner
+            </button>
+
+        </div>
+
+
+        <!-- SEMESTERS APPEAR HERE -->
+         <!-- ADD SEMESTER FORM -->
+
+<div class="add-semester-form" id="addSemesterForm" hidden>
+
+    <h3>Create New Semester</h3>
+
+    <label for="semesterTerm">Semester</label>
+
+    <select id="semesterTerm">
+        <option value="Spring">Spring</option>
+        <option value="Summer">Summer</option>
+        <option value="Fall">Fall</option>
+    </select>
+
+    <label for="semesterYear">Year</label>
+
+    <input
+        type="number"
+        id="semesterYear"
+        value="2027"
+        min="2026"
+        max="2040"
+    >
+
+    <div class="semester-form-buttons">
+        <button id="createSemesterButton">Create Semester</button>
+        <button id="cancelSemesterButton">Cancel</button>
+    </div>
+
+</div>
+
+        <div id="semesterContainer"></div>
+
+
+        <!-- ADD COURSE MODAL -->
+
+        <div class="modal-overlay" id="courseModal">
+
+            <div class="modal-content">
+
+                <div class="modal-header">
+
+                    <h2>Add a Course</h2>
+
+                    <button id="closeModalButton" class="close-modal">
+                        &times;
+                    </button>
+
+                </div>
+
+                <p>Select a course to add to your semester.</p>
+
+                <label for="courseSelect">Available Courses</label>
+
+                <select id="courseSelect">
+                    <option value="">Choose a course...</option>
+                </select>
+
+                <div class="modal-actions">
+
+                    <button id="cancelCourseButton" class="cancel-button">
+                        Cancel
+                    </button>
+
+                    <button id="confirmCourseButton" class="confirm-button">
+                        Add to Semester
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+
+    
+
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

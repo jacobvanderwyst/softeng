@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In | EduNav 2.0</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="integration.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo"><h1>EduNav 2.0</h1><span>Student Course Planner</span></div>
+    </header>
+    <main class="dashboard login-page">
+        <section class="progress-card">
+            <h2>Sign in</h2>
+            <p>Use the account provided by your administrator.</p>
+            <form id="loginForm">
+                <label for="username">Username</label>
+                <input id="username" name="username" autocomplete="username" maxlength="64" required autofocus>
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" required>
+                <button type="submit">Sign In</button>
+            </form>
+            <p id="loginError" role="alert"></p>
+        </section>
+    </main>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

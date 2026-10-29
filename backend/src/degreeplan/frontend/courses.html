@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Course Catalog | EduNav 2.0</title>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="integration.css">
+</head>
+
+<body>
+
+    <!-- NAVIGATION BAR -->
+
+    <header class="navbar">
+
+        <div class="logo">
+            <h1>EduNav 2.0</h1>
+            <span>Student Course Planner</span>
+        </div>
+
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="degree.html">My Degree</a>
+            <a href="planner.html">Planner</a>
+            <a href="courses.html">Courses</a>
+        </nav>
+
+    </header>
+
+
+    <!-- MAIN CONTENT -->
+
+    <main class="dashboard" hidden>
+
+        <section class="welcome">
+            <p>COURSE CATALOG</p>
+            <h2>Explore Available Courses</h2>
+            <span>
+                Search courses, review prerequisites, and plan your academic journey.
+            </span>
+        </section>
+
+
+        <!-- SEARCH AND FILTERS -->
+
+        <section class="catalog-controls">
+
+            <div class="catalog-search">
+                <label for="courseSearch">Search Courses</label>
+
+                <input
+                    type="search"
+                    id="courseSearch"
+                    placeholder="Search by course code or name..."
+                >
+            </div>
+
+            <div class="catalog-filters">
+
+                <div>
+                    <label for="subjectFilter">Subject</label>
+
+                    <select id="subjectFilter">
+                        <option value="all">All Subjects</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="creditFilter">Credit Hours</label>
+
+                    <select id="creditFilter">
+                        <option value="all">All Credits</option>
+                        <option value="1">1 Credit</option>
+                        <option value="2">2 Credits</option>
+                        <option value="3">3 Credits</option>
+                        <option value="4">4 Credits</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="statusFilter">Course Status</label>
+
+                    <select id="statusFilter">
+                        <option value="all">All Statuses</option>
+                        <option value="Completed">Completed</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Not Started">Not Started</option>
+                    </select>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- CATALOG RESULTS -->
+
+        <section class="catalog-results">
+
+            <div class="catalog-results-header">
+                <h3>Available Courses</h3>
+                <span id="courseCount">0 courses found</span>
+            </div>
+
+            <div id="catalogCourseList"></div>
+
+            <div id="catalogEmptyState" class="catalog-empty" hidden>
+                No courses match your search. Try changing your filters.
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- COURSE DETAILS MODAL -->
+
+    <div class="catalog-modal" id="catalogModal" hidden>
+
+        <div
+            class="catalog-modal-content"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="detailCourseCode"
+        >
+
+            <div class="catalog-modal-header">
+
+                <h2 id="detailCourseCode"></h2>
+
+                <button
+                    id="closeCatalogModal"
+                    class="catalog-close-button"
+                    aria-label="Close course details"
+                >
+                    &times;
+                </button>
+
+            </div>
+
+            <h3 id="detailCourseName"></h3>
+
+            <p id="detailCourseDescription"></p>
+
+            <div class="catalog-detail-row">
+                <strong>Credit Hours</strong>
+                <span id="detailCourseCredits"></span>
+            </div>
+
+            <div class="catalog-detail-row">
+                <strong>Prerequisites</strong>
+                <span id="detailCoursePrerequisites"></span>
+            </div>
+
+            <div class="catalog-detail-row">
+                <strong>Status</strong>
+                <span id="detailCourseStatus"></span>
+            </div>
+
+            <button id="closeCatalogDetails" class="catalog-done-button">
+                Done
+            </button>
+
+        </div>
+
+    </div>
+
+
+    
+
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

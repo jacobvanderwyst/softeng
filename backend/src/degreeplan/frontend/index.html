@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EduNav 2.0</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="integration.css">
+</head>
+
+<body>
+
+<header class="navbar">
+
+    <div class="logo">
+        <h1>EduNav 2.0</h1>
+        <span>Student Course Planner</span>
+    </div>
+
+    <nav>
+        <a href="index.html">Dashboard</a>
+        <a href="degree.html">My Degree</a>
+        <a href="planner.html">Planner</a>
+        <a href="courses.html">Courses</a>
+    </nav>
+
+</header>
+
+<main class="dashboard" hidden>
+
+    <!-- WELCOME SECTION -->
+
+    <section class="welcome">
+        <p>STUDENT DASHBOARD</p>
+        <h2>Computer Science B.S.</h2>
+        <span>Student-reported planning ? not an official degree audit</span>
+    </section>
+
+
+    <!-- DEGREE PROGRESS -->
+
+    <section class="progress-card">
+
+        <div class="progress-header">
+
+            <div>
+                <h3>Degree Progress</h3>
+                <p>Your progress toward graduation</p>
+            </div>
+
+            <h2 id="dashboardProgressPercent">0%</h2>
+
+        </div>
+
+        <div class="progress-bar">
+
+            <div
+                class="progress-fill"
+                id="dashboardProgressFill"
+                style="width: 0%;">
+            </div>
+
+        </div>
+
+        <div class="credit-info">
+
+            <strong id="dashboardCompletedCredits">0</strong>
+            of
+            <strong id="dashboardRequiredCredits">120</strong>
+            credit hours completed
+
+        </div>
+
+    </section>
+
+
+    <!-- DEGREE REQUIREMENTS -->
+
+    <section class="requirements">
+
+        <div class="section-title">
+            <h2>Degree Requirements</h2>
+            <p>Track your courses and degree completion</p>
+        </div>
+
+        <div class="course-list" id="dashboardRequirements"></div>
+    </section>
+
+</main>
+
+
+<!-- SHARED STUDENT DATA -->
+
+
+
+<!-- DASHBOARD FUNCTIONALITY -->
+
+
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

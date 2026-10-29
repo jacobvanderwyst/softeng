@@ -6,7 +6,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 
-from ..db.tables import courses, plan_courses, plans
+from ..db.tables import courses, plan_courses, plan_semesters, plans
 from . import all_rows, new_id, one
 
 
@@ -50,6 +50,7 @@ def rename_plan(conn: Connection, plan_id: int, name: str, now: int) -> None:
 
 def delete_plan(conn: Connection, plan_id: int) -> None:
     conn.execute(sa.delete(plan_courses).where(plan_courses.c.plan_id == plan_id))
+    conn.execute(sa.delete(plan_semesters).where(plan_semesters.c.plan_id == plan_id))
     conn.execute(sa.delete(plans).where(plans.c.id == plan_id))
 
 
@@ -65,6 +66,41 @@ def set_course(conn: Connection, plan_id: int, course_id: int, term_index: int, 
 def remove_course(conn: Connection, plan_id: int, course_id: int, now: int) -> bool:
     where = sa.and_(plan_courses.c.plan_id == plan_id, plan_courses.c.course_id == course_id)
     removed = conn.execute(sa.delete(plan_courses).where(where)).rowcount > 0
+    if removed:
+        conn.execute(sa.update(plans).where(plans.c.id == plan_id).values(updated_at=now))
+    return removed
+
+
+def list_semesters(conn: Connection, plan_id: int) -> list[dict[str, Any]]:
+    """Merge explicit names/empty semesters with occupied legacy numbered terms."""
+    occupied = conn.execute(
+        sa.select(plan_courses.c.term_index).where(plan_courses.c.plan_id == plan_id).distinct()
+    ).scalars()
+    names = {term: f"Term {term}" for term in occupied}
+    rows = conn.execute(
+        sa.select(plan_semesters.c.term_index, plan_semesters.c.name).where(plan_semesters.c.plan_id == plan_id)
+    )
+    names.update({row.term_index: row.name for row in rows})
+    return [{"term_index": term, "name": names[term]} for term in sorted(names)]
+
+
+def set_semester(conn: Connection, plan_id: int, term_index: int, name: str, now: int) -> None:
+    where = sa.and_(plan_semesters.c.plan_id == plan_id, plan_semesters.c.term_index == term_index)
+    updated = conn.execute(sa.update(plan_semesters).where(where).values(name=name))
+    if updated.rowcount == 0:
+        conn.execute(sa.insert(plan_semesters).values(plan_id=plan_id, term_index=term_index, name=name))
+    conn.execute(sa.update(plans).where(plans.c.id == plan_id).values(updated_at=now))
+
+
+def remove_semester(conn: Connection, plan_id: int, term_index: int, now: int) -> bool:
+    """Remove a named or synthesized semester and its courses in the caller's transaction."""
+    removed_courses = conn.execute(sa.delete(plan_courses).where(
+        plan_courses.c.plan_id == plan_id, plan_courses.c.term_index == term_index
+    )).rowcount
+    removed_semesters = conn.execute(sa.delete(plan_semesters).where(
+        plan_semesters.c.plan_id == plan_id, plan_semesters.c.term_index == term_index
+    )).rowcount
+    removed = removed_courses > 0 or removed_semesters > 0
     if removed:
         conn.execute(sa.update(plans).where(plans.c.id == plan_id).values(updated_at=now))
     return removed

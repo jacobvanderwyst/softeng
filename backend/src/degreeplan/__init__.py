@@ -14,6 +14,7 @@ from .logging_setup import configure_logging
 from .security import protection
 from .security.passwords import PasswordService
 from .security.sessions import SessionManager
+from .web import bp as web_bp
 
 __version__ = "1.0.0"
 
@@ -41,5 +42,6 @@ def create_app(settings: Settings | None = None) -> Flask:
     protection.init_app(app, settings)
     register_error_handlers(app)
     register_blueprints(app)
+    app.register_blueprint(web_bp)
     register_cli(app)
     return app

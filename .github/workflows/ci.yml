@@ -33,6 +33,11 @@ jobs:
         run: bandit -q -r src -c pyproject.toml
       - name: Tests with coverage
         run: pytest --cov --cov-report=term-missing:skip-covered
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Frontend unit and API-client tests
+        run: node --test ../tests/frontend/*.test.mjs
       - name: Production-path smoke test (real server, secret files, proxy headers)
         run: python scripts/production_smoke_test.py
       - name: Vulnerable dependencies

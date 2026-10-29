@@ -6,14 +6,31 @@
 .DESCRIPTION
   * Creates backend\.venv and installs the hash-pinned dependencies if needed.
   * Creates (or resets) the local databases under backend\instance, loads sample data and prints the
-    random demo passwords ONCE.
+    random demo passwords ONCE. Existing databases and saved plans are preserved by default.
+  * On subsequent launches, generates and displays fresh passwords for alice and teacher1 only
+    (unless -KeepDemoPasswords is supplied), revoking their old sessions and clearing their login lockouts.
   * Starts the API on http://localhost:<Port>.
 
   Nothing here touches production settings. The environment variables it sets are restored on exit.
+.PARAMETER Help
+  Show the help menu and return without installing packages, changing passwords/data or starting the server.
+.PARAMETER Port
+  Local HTTP port (default: 5000).
+.PARAMETER FrontendOrigin
+  Exact origin of an optional separate frontend server, such as http://localhost:5173.
+.PARAMETER Reset
+  Delete BOTH local demo databases, including saved plans/progress, then recreate sample data and accounts.
+.PARAMETER KeepDemoPasswords
+  Keep existing passwords on subsequent launches. Fresh/reset databases still receive generated passwords.
+.PARAMETER NoRun
+  Prepare the environment/databases/passwords but do not start the server.
 
 .EXAMPLE
+  .\scripts\demo.ps1 -Help                            # help only; changes nothing
+  .\scripts\demo.ps1 -h                               # short help alias
   .\scripts\demo.ps1                                   # first run, or reuse the existing demo database
   .\scripts\demo.ps1 -Reset                            # wipe the demo database, reseed, new passwords
+  .\scripts\demo.ps1 -KeepDemoPasswords                # keep manually chosen/existing passwords
   .\scripts\demo.ps1 -FrontendOrigin http://localhost:5173   # allow a separate frontend dev server (CORS)
 #>
 [CmdletBinding()]
@@ -21,9 +38,73 @@ param(
     [int]$Port = 5000,
     [string]$FrontendOrigin,
     [switch]$Reset,
-    [switch]$NoRun
+    [switch]$KeepDemoPasswords,
+    [switch]$NoRun,
+    [Alias('h')]
+    [switch]$Help
 )
 
+# Help must return before environment checks or ANY setup/password/database side effects.
+if ($Help) {
+    Write-Output @'
+EDUNAV LOCAL DEMO
+
+USAGE (from the repository root)
+  .\backend\scripts\demo.ps1 [options]
+
+OPTIONS
+  -Help, -h                  Show this menu only. No changes are made.
+  -Port <number>             HTTP port (default: 5000).
+  -KeepDemoPasswords         Keep existing passwords instead of refreshing alice/teacher1.
+  -NoRun                     Set up databases/passwords without starting the server.
+  -FrontendOrigin <origin>   Allow a separate frontend origin, e.g. http://localhost:5173.
+  -Reset                     DELETE both demo databases and all saved plans/progress,
+                             then recreate sample data and accounts. Not a password-recovery option.
+
+QUICK START
+  1. Run .\backend\scripts\demo.ps1
+  2. Copy the displayed passwords for alice (student) and teacher1 (teacher).
+  3. Open http://localhost:5000/ (use your chosen port if different).
+  4. Sign in as alice, create a plan, add semesters/courses, and update My Degree.
+  5. Reload to check persistence. Sign out and use teacher1 for read-only student views.
+     In the untouched sample database, Alice's student ID is 1.
+  Stop the server with Ctrl+C.
+
+PASSWORDS AND DATA
+  First setup: all six sample-account passwords are generated and displayed.
+  Later launches: only alice and teacher1 get new random passwords unless
+  -KeepDemoPasswords is supplied. Their old sessions are revoked and lockouts cleared.
+  Other accounts, saved plans and progress are preserved unless -Reset is supplied.
+  Passwords are displayed once per setup/refresh, not saved as plaintext or logged.
+  -NoRun still performs password setup; add -KeepDemoPasswords to preserve existing passwords.
+  -KeepDemoPasswords does not prevent account/password generation on fresh/reset databases.
+  This launcher is for local development only, not production or external databases.
+
+EXAMPLES
+  .\backend\scripts\demo.ps1
+  .\backend\scripts\demo.ps1 -KeepDemoPasswords
+  .\backend\scripts\demo.ps1 -Port 8080
+  .\backend\scripts\demo.ps1 -NoRun -KeepDemoPasswords
+  .\backend\scripts\demo.ps1 -FrontendOrigin http://localhost:5173
+
+TROUBLESHOOTING
+  "Bad request version" / strange \x16 characters:
+    Use HTTP, not HTTPS. If your browser upgrades localhost, try http://127.0.0.1:5000/.
+  Lost alice/teacher1 password:
+    Stop the server, run normally again, and copy the newly displayed passwords.
+  Port already in use:
+    Stop the previous server or select another port with -Port 8080.
+  Custom development database without the demo accounts:
+    Use -KeepDemoPasswords; do not use -Reset.
+
+MORE HELP
+  Get-Help .\backend\scripts\demo.ps1 -Detailed
+  docs\DEVELOPMENT.md
+
+When running from backend, use .\scripts\demo.ps1 instead of .\backend\scripts\demo.ps1.
+'@
+    return
+}
 $ErrorActionPreference = 'Stop'
 $backend = Split-Path -Parent $PSScriptRoot
 $venvPython = Join-Path $backend '.venv\Scripts\python.exe'
@@ -92,12 +173,21 @@ try {
         $seed | Where-Object { $_ -match '^\s+\w+\s+\S+$' } | ForEach-Object { Write-Host "  $_" }
         Write-Host '  roles: admin, teacher1/teacher2 (teachers), alice/bob (teacher1 advisees), carol (teacher2 advisee)'
     } else {
-        Write-Host 'Existing demo database kept. Run with -Reset to recreate it and get new passwords.' -ForegroundColor Yellow
+        Write-Host 'Existing demo database, plans and progress kept.' -ForegroundColor Yellow
+        if ($KeepDemoPasswords) {
+            Write-Host 'Existing passwords kept (-KeepDemoPasswords). No passwords are displayed.' -ForegroundColor Yellow
+        } else {
+            Write-Step 'Generating fresh login passwords for alice and teacher1'
+            & $venvPython -m flask --app degreeplan.wsgi dev refresh-demo-passwords
+            if ($LASTEXITCODE -ne 0) { throw 'Could not refresh demo passwords. No database reset was performed.' }
+            Write-Host 'Copy the two passwords above. They change on the next launch unless you use -KeepDemoPasswords.' -ForegroundColor Yellow
+        }
     }
 
     Write-Host ''
     Write-Host "API:        http://localhost:$Port/api/v1/health/ready"
-    Write-Host "Frontend:   $(if ($FrontendOrigin) { "CORS allowed for $FrontendOrigin" } else { 'same-origin only (use -FrontendOrigin <origin> for a separate dev server)' })"
+    Write-Host "Frontend:   http://localhost:$Port/"
+    if ($FrontendOrigin) { Write-Host "CORS:       allowed for $FrontendOrigin" }
     Write-Host 'Guide:      docs\DEVELOPMENT.md'
     Write-Host ''
 

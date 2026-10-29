@@ -88,7 +88,10 @@ export const api = {
       csrfToken = data.csrf_token;
       return data.user;
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) return null;
+      if (error instanceof ApiError && error.status === 401) {
+        csrfToken = null;
+        return null;
+      }
       throw error;
     }
   },
@@ -111,6 +114,10 @@ export const api = {
     get: (id) => request("GET", `/programs/${id}`), // includes required courses
   },
 
+  progress: {
+    list: (studentId) => request("GET", `/progress${qs({ student_id: studentId })}`),
+    set: (courseId, status) => request("PUT", `/progress/${courseId}`, { status }),
+  },
   plans: {
     /** Students: their own plans. Teachers/admins: pass the student's id. */
     list: (studentId) => request("GET", `/plans${qs({ student_id: studentId })}`),
@@ -122,5 +129,8 @@ export const api = {
     setCourse: (id, { course_id, term_index }) => request("PUT", `/plans/${id}/courses`, { course_id, term_index }),
     removeCourse: (id, courseId) => request("DELETE", `/plans/${id}/courses/${courseId}`),
     validate: (id) => request("GET", `/plans/${id}/validation`), // { valid, issues: [...] }
+    setSemester: (id, term_index, name) =>
+      request("PUT", `/plans/${id}/semesters`, { term_index, name }),
+    removeSemester: (id, termIndex) => request("DELETE", `/plans/${id}/semesters/${termIndex}`),
   },
 };

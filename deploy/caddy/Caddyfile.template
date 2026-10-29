@@ -48,10 +48,8 @@
 		}
 	}
 
-	# Frontend (static files from the frontend build). Single-page-app fallback to index.html.
+	# Packaged EduNav pages and assets: Flask applies an explicit public-file allowlist and CSP.
 	handle {
-		root * @DATA_ROOT_FWD@/www
-		try_files {path} /index.html
-		file_server
+		reverse_proxy localhost:8000
 	}
 }

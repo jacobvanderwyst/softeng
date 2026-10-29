@@ -17,7 +17,7 @@ from ..repositories import catalog, people
 from ..repositories import plans as plans_repo
 from ..security.auth import login_required, require_auth
 from ..services import access, plan_rules
-from ..validation import PlanCourseIn, PlanCreateIn, PlanUpdateIn, parse_body
+from ..validation import PlanCourseIn, PlanCreateIn, PlanSemesterIn, PlanUpdateIn, parse_body
 from .utils import int_arg, iso
 
 log = logging.getLogger(__name__)
@@ -36,6 +36,7 @@ def _present(plan: dict[str, Any], courses: list[dict[str, Any]] | None = None) 
     if courses is not None:
         out["courses"] = courses
         out["total_credits"] = sum(c["credits"] for c in courses)
+        out["semesters"] = plans_repo.list_semesters(plans_conn(), plan["id"])
     return out
 
 
@@ -173,3 +174,26 @@ def validate_plan(plan_id: int):
     plan, courses = _load_plan(plan_id)
     issues = _issues_for(plan, courses)
     return jsonify({"valid": not issues, "issues": issues})
+
+
+@bp.put("/<int:plan_id>/semesters")
+@login_required
+def set_plan_semester(plan_id: int):
+    _load_plan(plan_id, write=True)
+    body = parse_body(PlanSemesterIn)
+    plans_repo.set_semester(plans_conn(), plan_id, body.term_index, body.name, clock.now())
+    _commit_with_audit("plan.semester.set", plan_id, {"term_index": body.term_index, "name": body.name})
+    plan, courses = _load_plan(plan_id)
+    return jsonify(_present(plan, courses))
+
+
+@bp.delete("/<int:plan_id>/semesters/<int:term_index>")
+@login_required
+def remove_plan_semester(plan_id: int, term_index: int):
+    _load_plan(plan_id, write=True)
+    if not 1 <= term_index <= 16:
+        raise ValidationError("term_index must be between 1 and 16.")
+    if not plans_repo.remove_semester(plans_conn(), plan_id, term_index, clock.now()):
+        raise NotFoundError("Semester is not in this plan.")
+    _commit_with_audit("plan.semester.remove", plan_id, {"term_index": term_index})
+    return "", 204

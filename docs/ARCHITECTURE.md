@@ -3,10 +3,11 @@
 ## Overview
 
 ```
- Browser ──HTTPS──▶ Caddy (TLS, headers, static frontend)
-                      │  /api/*  (loopback only)
+ Browser ──HTTPS──▶ Caddy (TLS, headers)
+                      │  frontend + /api/* (loopback only)
                       ▼
                  waitress ──▶ Flask app "degreeplan"
+                  packaged EduNav pages + API
                                  │
                  ┌───────────────┴───────────────┐
                  ▼                               ▼
@@ -30,7 +31,8 @@ says the caller may see that student). Either database can therefore move to its
 | `repositories/` | all SQL (Core expressions, bound parameters only); callers own the transaction |
 | `services/` | business rules without HTTP: `plan_rules` (prerequisites, credit limits), `access` (authorization) |
 | `security/` | passwords, sessions, lockout, auth decorators, request protection (CSRF/Origin, headers, CORS, rate limit) |
-| `api/` | Flask blueprints under `/api/v1`: `health`, `auth`, `catalog`, `plans` |
+| `api/` | Flask blueprints under `/api/v1`: `health`, `auth`, `catalog`, `plans`, `progress` |
+| `frontend/`, `web.py` | packaged EduNav HTML/CSS/JS, explicit public-file allowlist, same-origin delivery |
 | `audit.py`, `logging_setup.py` | audit trail, JSON/text logging with redaction and request IDs |
 | `cli.py` | operator commands: `db`, `users`, and `dev` (development only) |
 | `devtools/` | sample data for development and tests; refuses to run in production and is not registered there |
@@ -70,6 +72,22 @@ request log line.
   changes). Passwords, tokens, cookies, request bodies and URL credentials are never logged (a redactor scrubs
   everything). Unexpected errors are logged with a traceback and returned to clients as a generic message.
 
+## EduNav frontend and persisted progress
+
+The frontend is a dependency-free set of ES modules and static pages, based on EduNav-2.0 commit
+`cde138a9e5133c6b189be8bb4787a7492fa6b6c4`. Flask serves only enumerated public assets, never arbitrary package
+files. Frontend responses use a separate CSP allowing same-origin scripts, styles, API connections and inline style
+properties (used for progress bars). API responses retain their default-deny CSP. Tokens remain in memory;
+no student state or authentication tokens are stored in localStorage.
+
+Plans have optional `plan_semesters` rows for named/empty semesters. Legacy course-only numbered terms are presented
+as `Term N` without rewriting existing records. Deleting a semester removes its courses in the same transaction;
+deleting a plan leaves the student's independent progress intact.
+`student_course_progress` holds per-student/course self-reported statuses in the plans database, with no cross-database
+foreign key to students. Student ownership is checked in the users database on every call. Teachers may read assigned
+students and admins may read any student; neither can edit progress or plans.
+Progress is not official transcript evidence and does not override existing prerequisite-order validation.
+
 ## API reference
 
 Base path `/api/v1`. JSON in, JSON out. Errors always look like
@@ -96,12 +114,16 @@ Base path `/api/v1`. JSON in, JSON out. Errors always look like
 | `GET /programs`, `GET /programs/{id}` | logged in | | programs; one program adds `requirements` |
 | `GET /plans` | student; staff with `?student_id=` | | `{items: [plan headers]}` |
 | `POST /plans` | students | `{name, program_id}` | `201` + plan |
-| `GET /plans/{id}` | owner, assigned teacher, admin | | plan with `courses[{course_id, code, title, credits, term_index}]` and `total_credits` |
+| `GET /plans/{id}` | owner, assigned teacher, admin | | plan with `courses[{course_id, code, title, credits, term_index}]`, `total_credits`, `semesters[{term_index, name}]` |
 | `PATCH /plans/{id}` | owner | `{name}` | plan |
 | `DELETE /plans/{id}` | owner | | `204` |
 | `PUT /plans/{id}/courses` | owner | `{course_id, term_index (1-16)}` | plan plus `issues[]` (adds or moves a course) |
 | `DELETE /plans/{id}/courses/{course_id}` | owner | | `204` |
 | `GET /plans/{id}/validation` | same as `GET /plans/{id}` | | `{valid, issues[{type, message, course_id, ...}]}` |
+| `PUT /plans/{id}/semesters` | owner | `{term_index (1-16), name (1-120 chars)}` | detailed plan including `semesters[{term_index, name}]` |
+| `DELETE /plans/{id}/semesters/{term_index}` | owner | | `204`; deletes semester and its planned courses |
+| `GET /progress` | student; staff with authorized `?student_id=` | | `{items: [{course_id, status}]}` |
+| `PUT /progress/{course_id}` | student (own record only) | `{status: "Not Started" / "In Progress" / "Completed"}` | `{course_id, status}` |
 | `GET /health/live`, `GET /health/ready` | anyone | | `{status}` (`ready` also checks both databases and their migration revision) |
 
 Issue types: `missing_prerequisite`, `prerequisite_order`, `term_credit_limit`, `missing_requirement`. A plan is valid

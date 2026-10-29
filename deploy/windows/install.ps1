@@ -275,5 +275,5 @@ Write-Host ''
 Write-Host 'Installation complete. The API is healthy.' -ForegroundColor Green
 Write-Host "Next: create the first administrator (prompts for a password):"
 Write-Host "    & '$cli' users create <name> --role admin"
-Write-Host "Frontend files go in: $($dirs.Www)"
+Write-Host 'EduNav frontend is included in the application package; no separate frontend build or copy is needed.'
 Write-Host 'See docs\DEPLOYMENT.md for verification, backups and upgrades.'

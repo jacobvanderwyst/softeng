@@ -34,7 +34,7 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-degreeplan = ["migrations/**/*"]
+degreeplan = ["migrations/**/*", "frontend/*.html", "frontend/*.css", "frontend/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

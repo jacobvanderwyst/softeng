@@ -25,6 +25,7 @@ from .config import sqlite_file_path
 from .db import migrate, plans_conn, users_conn
 from .repositories import catalog, people
 from .repositories import users as users_repo
+from .security import lockout
 from .security.passwords import PasswordPolicyError
 
 _USERNAME_RE = re.compile(r"[A-Za-z0-9_.@-]{1,64}")
@@ -240,6 +241,46 @@ def dev_seed() -> None:
     seed_sample_data(users_conn(), plans_conn(), settings=svc.settings, passwords=svc.passwords,
                      credentials=credentials)
     click.echo("Sample data loaded. Passwords below are shown ONCE:")
+    for username, password in credentials.items():
+        click.echo(f"  {username:<10} {password}")
+
+
+@dev_cli.command("refresh-demo-passwords")
+def refresh_demo_passwords() -> None:
+    """Generate and display new Alice/teacher1 passwords without resetting any data."""
+    svc = context.services()
+    if svc.settings.is_production:
+        raise click.ClickException("Demo passwords cannot be refreshed in production.")
+    conn = users_conn()
+    accounts = []
+    # Validate BOTH accounts before changing either. Never activate or change someone's role.
+    for username, role in (("alice", "student"), ("teacher1", "teacher")):
+        user = users_repo.get_by_username(conn, username)
+        if not user or user["role"] != role or not user["is_active"]:
+            raise click.ClickException(
+                f"Expected active demo {role} '{username}'. Use -KeepDemoPasswords for custom databases."
+            )
+        accounts.append(user)
+
+    credentials: dict[str, str] = {}
+    now = clock.now()
+    for user in accounts:
+        password = secrets.token_urlsafe(max(16, svc.settings.password_min_length))
+        while True:
+            try:
+                svc.passwords.validate_new(password, user["username"])
+                break
+            except PasswordPolicyError:
+                # Rare random matches to the username must still meet the normal policy.
+                password = secrets.token_urlsafe(max(16, svc.settings.password_min_length))
+        users_repo.set_password_hash(conn, user["id"], svc.passwords.hash(password), now)
+        svc.sessions.revoke_all(conn, user["id"])
+        lockout.clear(conn, lockout.lockout_key(user["username"]))
+        audit.record(conn, "user.set_password", actor_role="cli", target_type="user", target_id=user["id"])
+        credentials[user["username"]] = password
+    conn.commit()
+    # Print only after the whole transaction succeeds; never put credentials in audit logs.
+    click.echo("Fresh demo passwords (shown once this launch; old sessions revoked):")
     for username, password in credentials.items():
         click.echo(f"  {username:<10} {password}")
 

@@ -63,7 +63,8 @@ are kept, code and service definitions are refreshed.
 
 Set `USERS_DATABASE_URL_FILE` and `PLANS_DATABASE_URL_FILE` to files in `secrets` containing the full SQLAlchemy URLs
 (credentials included), with separate least-privilege database accounts (read-only on `programs`, `courses`,
-`course_prerequisites`, `program_requirements`; read/write on `plans`, `plan_courses`; no cross access). Add the driver
+`course_prerequisites`, `program_requirements`; read/write on `plans`, `plan_courses`, `plan_semesters`,
+`student_course_progress`; no cross access). Add the driver
 and refresh the lock files ([DEVELOPMENT.md](DEVELOPMENT.md#2-tests-and-quality-gates)). `db backup` supports SQLite
 only.
 
@@ -82,9 +83,14 @@ Never put a password on a command line; `--password-stdin` reads one line from s
 
 ## Frontend
 
-Copy the built frontend into `C:\ProgramData\DegreePlan\www`. Caddy serves it (single-page-app fallback to
-`index.html`) and proxies `/api/*` to the backend, so both share one origin and no CORS is needed. If the frontend
-must live elsewhere, add its exact HTTPS origin to `CORS_ORIGINS` (wildcards are rejected).
+EduNav is included in the Python application package. The Caddy template proxies both the API and the allowlisted
+frontend pages/assets to Flask, so they share one origin and no CORS or separate frontend build/copy is needed.
+Re-run the installer on an upgrade to update the Caddy template as well as the application.
+The legacy `www` directory is retained but is no longer used by the default configuration.
+Custom deployments may serve `backend/src/degreeplan/frontend/` as static files instead, with `/api/*` proxied to Flask;
+apply the frontend CSP from `web.py` at the proxy, and do not copy backend code or databases into the public directory.
+For a separate frontend origin, the shipped client and CSP need explicit adjustment as well as an exact HTTPS
+`CORS_ORIGINS` entry; wildcards are rejected.
 
 ## Verify
 

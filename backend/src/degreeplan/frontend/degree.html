@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>My Degree | EduNav 2.0</title>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="integration.css">
+</head>
+
+<body>
+
+    <!-- NAVIGATION -->
+
+    <header class="navbar">
+
+        <div class="logo">
+            <h1>EduNav 2.0</h1>
+            <span>Student Course Planner</span>
+        </div>
+
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="degree.html">My Degree</a>
+            <a href="planner.html">Planner</a>
+            <a href="courses.html">Courses</a>
+        </nav>
+
+    </header>
+
+
+    <!-- MAIN DEGREE PAGE -->
+
+    <main class="dashboard" hidden>
+
+        <section class="welcome">
+
+            <p>DEGREE TRACKER</p>
+
+            <h2>My Degree Progress</h2>
+
+            <span>
+                Track your completed courses and progress toward graduation.
+            </span>
+
+        </section>
+
+
+        <!-- DEGREE OVERVIEW -->
+
+        <section class="degree-overview">
+
+            <div class="degree-overview-header">
+
+                <div>
+
+                    <p class="degree-label">CURRENT DEGREE PROGRAM</p>
+
+                    <h2 id="degreeProgramName">
+                        Computer Science B.S.
+                    </h2>
+
+                    <p class="degree-university">
+                        Student-reported planning ? not an official degree audit
+                    </p>
+
+                </div>
+
+                <div class="degree-program-select">
+
+                    <label for="degreeSelect">Degree Program</label>
+
+                    <select id="degreeSelect">
+                        <option value="computerScience">
+                            Computer Science B.S.
+                        </option>
+                    </select>
+
+                </div>
+
+            </div>
+
+
+            <!-- DEGREE PROGRESS -->
+
+            <div class="degree-progress-header">
+
+                <h3>Graduation Progress</h3>
+
+                <strong id="degreeProgressPercent">0%</strong>
+
+            </div>
+
+            <div class="degree-progress-track">
+
+                <div
+                    class="degree-progress-fill"
+                    id="degreeProgressFill"
+                ></div>
+
+            </div>
+
+            <p class="degree-progress-description">
+                <span id="degreeCompletedCredits">0</span>
+                of
+                <span id="degreeRequiredCredits">120</span>
+                credit hours completed
+            </p>
+
+            <p class="degree-demo-note">
+                Demonstration degree plan — not an official SHSU degree audit.
+            </p>
+
+        </section>
+
+
+        <!-- DEGREE STATISTICS -->
+
+        <section class="degree-stats">
+
+            <div class="degree-stat-card">
+
+                <p>Total Requirements</p>
+
+                <h2 id="totalRequirements">0</h2>
+
+            </div>
+
+            <div class="degree-stat-card">
+
+                <p>Completed Courses</p>
+
+                <h2 id="completedRequirements">0</h2>
+
+            </div>
+
+            <div class="degree-stat-card">
+
+                <p>In Progress</p>
+
+                <h2 id="inProgressRequirements">0</h2>
+
+            </div>
+
+            <div class="degree-stat-card">
+
+                <p>Remaining Courses</p>
+
+                <h2 id="remainingRequirements">0</h2>
+
+            </div>
+
+        </section>
+
+
+        <!-- REQUIREMENTS CONTROLS -->
+
+        <section class="degree-requirements-section">
+
+            <div class="degree-section-heading">
+
+                <div>
+                    <h2>Degree Requirements</h2>
+
+                    <p>
+                        Review your academic requirements and update course progress.
+                    </p>
+                </div>
+
+                <button
+                    id="resetDegreeButton"
+                    class="degree-reset-button"
+                >
+                    Reset Progress
+                </button>
+
+            </div>
+
+
+            <div class="degree-controls">
+
+                <div class="degree-search">
+
+                    <label for="degreeSearch">
+                        Search Requirements
+                    </label>
+
+                    <input
+                        type="search"
+                        id="degreeSearch"
+                        placeholder="Search by course code or name..."
+                    >
+
+                </div>
+
+
+                <div class="degree-filter-grid">
+
+                    <div>
+
+                        <label for="degreeCategoryFilter">
+                            Requirement Category
+                        </label>
+
+                        <select id="degreeCategoryFilter">
+                            <option value="all">All Categories</option>
+                        </select>
+
+                    </div>
+
+
+                    <div>
+
+                        <label for="degreeStatusFilter">
+                            Completion Status
+                        </label>
+
+                        <select id="degreeStatusFilter">
+
+                            <option value="all">All Statuses</option>
+
+                            <option value="Completed">Completed</option>
+
+                            <option value="In Progress">In Progress</option>
+
+                            <option value="Not Started">Not Started</option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- REQUIREMENTS LIST -->
+
+            <div class="degree-list-header">
+
+                <h3>Course Requirements</h3>
+
+                <span id="degreeResultCount">
+                    0 requirements found
+                </span>
+
+            </div>
+
+            <div id="degreeRequirementsList"></div>
+
+            <div
+                id="degreeEmptyState"
+                class="degree-empty-state"
+                hidden
+            >
+                No requirements match your search.
+            </div>
+
+        </section>
+
+
+        <!-- GRADUATION SUMMARY -->
+
+        <section class="degree-summary">
+
+            <h2>Graduation Summary</h2>
+
+            <p>
+                Monitor your remaining credit hours and academic requirements.
+            </p>
+
+            <div class="degree-summary-grid">
+
+                <div>
+
+                    <span>Completed Credits</span>
+
+                    <strong id="summaryCompletedCredits">0</strong>
+
+                </div>
+
+                <div>
+
+                    <span>Remaining Credits</span>
+
+                    <strong id="summaryRemainingCredits">0</strong>
+
+                </div>
+
+                <div>
+
+                    <span>Courses Remaining</span>
+
+                    <strong id="summaryRemainingCourses">0</strong>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    
+
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
