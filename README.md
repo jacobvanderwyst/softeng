@@ -9,7 +9,6 @@ The integrated HTML/CSS/JavaScript frontend requires no Node build step.
 | `backend/src/degreeplan/frontend/` | integrated EduNav pages and browser API client |
 | `deploy/` | Windows Server install, backup and uninstall scripts; service and Caddy (TLS) templates |
 | `docs/` | documentation (below) and integration examples |
-| `poc/` | standalone login demo, **not deployed**. `pip install -r requirements.txt`, then `python server.py --init-demo` (random demo passwords are printed once); `pytest` runs its tests |
 
 ## Quick start
 
