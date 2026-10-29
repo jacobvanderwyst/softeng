@@ -20,6 +20,9 @@
   Exact origin of an optional separate frontend server, such as http://localhost:5173.
 .PARAMETER Reset
   Delete BOTH local demo databases, including saved plans/progress, then recreate sample data and accounts.
+.PARAMETER ClearSavedData
+  Delete ALL students' saved plans, semesters, planned courses and course progress on startup.
+  Keep accounts and the catalog. Use -KeepDemoPasswords too if existing passwords should stay unchanged.
 .PARAMETER KeepDemoPasswords
   Keep existing passwords on subsequent launches. Fresh/reset databases still receive generated passwords.
 .PARAMETER NoRun
@@ -30,6 +33,7 @@
   .\scripts\demo.ps1 -h                               # short help alias
   .\scripts\demo.ps1                                   # first run, or reuse the existing demo database
   .\scripts\demo.ps1 -Reset                            # wipe the demo database, reseed, new passwords
+  .\scripts\demo.ps1 -ClearSavedData                   # clear saved work, keep accounts and catalog
   .\scripts\demo.ps1 -KeepDemoPasswords                # keep manually chosen/existing passwords
   .\scripts\demo.ps1 -FrontendOrigin http://localhost:5173   # allow a separate frontend dev server (CORS)
 #>
@@ -38,6 +42,7 @@ param(
     [int]$Port = 5000,
     [string]$FrontendOrigin,
     [switch]$Reset,
+    [switch]$ClearSavedData,
     [switch]$KeepDemoPasswords,
     [switch]$NoRun,
     [Alias('h')]
@@ -58,6 +63,8 @@ OPTIONS
   -KeepDemoPasswords         Keep existing passwords instead of refreshing alice/teacher1.
   -NoRun                     Set up databases/passwords without starting the server.
   -FrontendOrigin <origin>   Allow a separate frontend origin, e.g. http://localhost:5173.
+  -ClearSavedData            DELETE ALL students' saved plans, semesters, planned courses
+                             and course progress. Keep accounts and catalog.
   -Reset                     DELETE both demo databases and all saved plans/progress,
                              then recreate sample data and accounts. Not a password-recovery option.
 
@@ -74,7 +81,11 @@ PASSWORDS AND DATA
   First setup: all six sample-account passwords are generated and displayed.
   Later launches: only alice and teacher1 get new random passwords unless
   -KeepDemoPasswords is supplied. Their old sessions are revoked and lockouts cleared.
-  Other accounts, saved plans and progress are preserved unless -Reset is supplied.
+  Saved work is preserved unless -ClearSavedData or -Reset is supplied.
+  -ClearSavedData affects ALL students, not just alice. It also runs with -NoRun.
+  Add -KeepDemoPasswords to keep passwords too; otherwise normal password refresh still runs.
+  Accounts/catalog are preserved by -ClearSavedData. -Reset replaces BOTH databases instead
+  and takes precedence when both flags are supplied. Neither option creates a backup.
   Passwords are displayed once per setup/refresh, not saved as plaintext or logged.
   -NoRun still performs password setup; add -KeepDemoPasswords to preserve existing passwords.
   -KeepDemoPasswords does not prevent account/password generation on fresh/reset databases.
@@ -85,6 +96,8 @@ EXAMPLES
   .\backend\scripts\demo.ps1 -KeepDemoPasswords
   .\backend\scripts\demo.ps1 -Port 8080
   .\backend\scripts\demo.ps1 -NoRun -KeepDemoPasswords
+  .\backend\scripts\demo.ps1 -ClearSavedData
+  .\backend\scripts\demo.ps1 -ClearSavedData -KeepDemoPasswords
   .\backend\scripts\demo.ps1 -FrontendOrigin http://localhost:5173
 
 TROUBLESHOOTING
@@ -173,7 +186,7 @@ try {
         $seed | Where-Object { $_ -match '^\s+\w+\s+\S+$' } | ForEach-Object { Write-Host "  $_" }
         Write-Host '  roles: admin, teacher1/teacher2 (teachers), alice/bob (teacher1 advisees), carol (teacher2 advisee)'
     } else {
-        Write-Host 'Existing demo database, plans and progress kept.' -ForegroundColor Yellow
+        Write-Host 'Existing demo databases kept.' -ForegroundColor Yellow
         if ($KeepDemoPasswords) {
             Write-Host 'Existing passwords kept (-KeepDemoPasswords). No passwords are displayed.' -ForegroundColor Yellow
         } else {
@@ -182,6 +195,12 @@ try {
             if ($LASTEXITCODE -ne 0) { throw 'Could not refresh demo passwords. No database reset was performed.' }
             Write-Host 'Copy the two passwords above. They change on the next launch unless you use -KeepDemoPasswords.' -ForegroundColor Yellow
         }
+    }
+
+    if ($ClearSavedData -and -not $Reset) {
+        Write-Step 'Clearing ALL saved plans, semesters, planned courses and course progress'
+        & $venvPython -m flask --app degreeplan.wsgi dev clear-saved-data --yes
+        if ($LASTEXITCODE -ne 0) { throw 'Could not clear saved demo information.' }
     }
 
     Write-Host ''

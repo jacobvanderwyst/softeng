@@ -22,6 +22,8 @@ shown by the script. Create a plan, add semesters/courses, and use My Degree to 
 On later launches, new random passwords for `alice` and `teacher1` are displayed without deleting any data.
 Use `.\scripts\demo.ps1 -KeepDemoPasswords` from `backend` to keep existing/manually chosen passwords instead.
 Use `.\scripts\demo.ps1 -Help` (or `-h`) for the built-in demo guide, options and troubleshooting without making changes.
+Use `.\scripts\demo.ps1 -ClearSavedData` to start with **all students' saved plans and progress deleted**, keeping
+accounts and the catalog. Add `-KeepDemoPasswords` to preserve passwords too. Normal startup does not clear saved work.
 Existing local databases are migrated, not reset. Browser-only data from the original frontend is not imported.
 The catalog comes from the backend database, not the frontend's old demonstration arrays.
 

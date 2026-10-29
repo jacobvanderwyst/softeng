@@ -6,7 +6,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 
-from ..db.tables import courses, plan_courses, plan_semesters, plans
+from ..db.tables import courses, plan_courses, plan_semesters, plans, student_course_progress
 from . import all_rows, new_id, one
 
 
@@ -52,6 +52,16 @@ def delete_plan(conn: Connection, plan_id: int) -> None:
     conn.execute(sa.delete(plan_courses).where(plan_courses.c.plan_id == plan_id))
     conn.execute(sa.delete(plan_semesters).where(plan_semesters.c.plan_id == plan_id))
     conn.execute(sa.delete(plans).where(plans.c.id == plan_id))
+
+
+def clear_saved_data(conn: Connection) -> dict[str, int]:
+    """Clear all students' saved work in the caller's transaction; keep accounts and catalog."""
+    counts = {}
+    # Delete children explicitly instead of relying on database-specific cascade settings.
+    for table in (plan_courses, plan_semesters, plans, student_course_progress):
+        counts[table.name] = int(conn.execute(sa.select(sa.func.count()).select_from(table)).scalar_one())
+        conn.execute(sa.delete(table))
+    return counts
 
 
 def set_course(conn: Connection, plan_id: int, course_id: int, term_index: int, now: int) -> None:

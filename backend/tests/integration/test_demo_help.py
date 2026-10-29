@@ -29,7 +29,7 @@ def test_demo_help_returns_before_setup_even_with_other_flags(tmp_path, flag):
     }
     result = subprocess.run(  # noqa: S603
         [POWERSHELL, "-NoProfile", "-NonInteractive", "-File", str(script),
-         flag, "-Reset", "-NoRun", "-FrontendOrigin", "invalid-origin"],
+         flag, "-Reset", "-ClearSavedData", "-NoRun", "-FrontendOrigin", "invalid-origin"],
         cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=15,
     )
     assert result.returncode == 0, result.stderr
@@ -37,6 +37,7 @@ def test_demo_help_returns_before_setup_even_with_other_flags(tmp_path, flag):
     assert "QUICK START" in result.stdout
     assert "TROUBLESHOOTING" in result.stdout
     assert "-KeepDemoPasswords" in result.stdout
+    assert "-ClearSavedData" in result.stdout
     assert "HTTP, not HTTPS" in result.stdout
     assert "==>" not in result.stdout
     assert not (tmp_path / ".venv").exists()

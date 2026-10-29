@@ -24,6 +24,7 @@ from . import audit, clock, context
 from .config import sqlite_file_path
 from .db import migrate, plans_conn, users_conn
 from .repositories import catalog, people
+from .repositories import plans as plans_repo
 from .repositories import users as users_repo
 from .security import lockout
 from .security.passwords import PasswordPolicyError
@@ -243,6 +244,24 @@ def dev_seed() -> None:
     click.echo("Sample data loaded. Passwords below are shown ONCE:")
     for username, password in credentials.items():
         click.echo(f"  {username:<10} {password}")
+
+
+@dev_cli.command("clear-saved-data")
+@click.option("--yes", is_flag=True, help="Confirm deletion of ALL students' saved plans and progress.")
+def clear_demo_saved_data(yes: bool) -> None:
+    """Delete saved demo plans/semesters/courses/progress, retaining accounts and the catalog."""
+    if context.settings().is_production:
+        raise click.ClickException("Demo saved data cannot be cleared in production.")
+    if not yes:
+        raise click.ClickException(
+            "This deletes ALL students' saved plans and progress. Pass --yes to confirm."
+        )
+    counts = plans_repo.clear_saved_data(plans_conn())
+    plans_conn().commit()
+    audit.record(users_conn(), "dev.saved_data.clear", actor_role="cli", detail=counts)
+    users_conn().commit()
+    click.echo("Cleared saved data: " + ", ".join(f"{name}={count}" for name, count in counts.items()))
+    click.echo("Accounts, passwords, profiles, advisor assignments and catalog kept.")
 
 
 @dev_cli.command("refresh-demo-passwords")

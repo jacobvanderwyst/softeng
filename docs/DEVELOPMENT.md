@@ -20,6 +20,7 @@ The script creates `backend\.venv` and installs the hash-pinned dependencies (fi
 | --- | --- |
 | `-Help` / `-h` | show usage, demo steps and troubleshooting; no setup or password/data changes |
 | `-Reset` | delete the local databases, reseed, new passwords |
+| `-ClearSavedData` | delete all students' saved plans, semesters, planned courses and progress; retain accounts/catalog |
 | `-KeepDemoPasswords` | preserve existing passwords instead of generating new ones for `alice` and `teacher1` |
 | `-FrontendOrigin http://localhost:5173` | allow that exact origin through CORS (the frontend dev server) |
 | `-Port 8080` | different port |
@@ -34,6 +35,14 @@ Copy the displayed passwords for the demo. Use `-KeepDemoPasswords` to retain ma
 against a custom development database without these two demo accounts. The switch does not suppress initial
 account creation on a fresh/reset database. `-NoRun` still performs password setup unless `-KeepDemoPasswords` is set.
 Do not use `-Reset` just to recover a password: it deletes local demo data.
+
+**Clean demo without rebuilding accounts/catalog:** run `.\scripts\demo.ps1 -ClearSavedData`.
+To keep current passwords too, run `.\scripts\demo.ps1 -ClearSavedData -KeepDemoPasswords`.
+This permanently clears saved work for **every student**, not just Alice. It preserves profiles, advisor assignments,
+catalog courses, prerequisites, program requirements and existing audit history. Normal password refresh still occurs
+unless `-KeepDemoPasswords` is supplied. Clearing runs even with `-NoRun`; `-Help` never clears anything.
+`-Reset` takes precedence if both wipe options are supplied. Neither option creates a backup; stop any running
+demo server first and back up anything you want to keep. Clearing is transactional within the plans database.
 
 Development mode differs from production in three ways: the session key is random on every start (so a restart logs
 everyone out), cookies are named `sid` and are not `Secure` (so plain `http://localhost` works), and the databases
@@ -61,7 +70,7 @@ flask --app degreeplan.wsgi run                   # add --debug for auto-reload
 | --- | --- |
 | `db` | `upgrade`, `status`, `stamp --target users\|plans`, `backup --dest <folder>` |
 | `users` | `create`, `list`, `set-password`, `deactivate`, `activate`, `revoke-sessions` |
-| `dev` | `seed`, `refresh-demo-passwords` (development only; not registered when `APP_ENV=production`) |
+| `dev` | `seed`, `refresh-demo-passwords`, `clear-saved-data --yes` (development only; absent in production) |
 
 ## 2. Tests and quality gates
 
