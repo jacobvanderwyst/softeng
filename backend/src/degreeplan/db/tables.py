@@ -161,7 +161,10 @@ student_course_progress = sa.Table(
     sa.Column("student_id", sa.Integer, primary_key=True),  # soft reference into the users database
     sa.Column("course_id", sa.Integer, sa.ForeignKey("courses.id", ondelete="CASCADE"), primary_key=True),
     sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("grade", sa.String(1), nullable=True),
     sa.Column("updated_at", sa.BigInteger, nullable=False),
+    sa.CheckConstraint("grade IS NULL OR grade IN ('A', 'B', 'C', 'D', 'F')",
+                       name="ck_student_course_progress_grade"),
     sa.CheckConstraint(
         "status IN ('Not Started', 'In Progress', 'Completed')", name="ck_student_course_progress_status"
     ),

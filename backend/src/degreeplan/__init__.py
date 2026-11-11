@@ -16,7 +16,7 @@ from .security.passwords import PasswordService
 from .security.sessions import SessionManager
 from .web import bp as web_bp
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 def create_app(settings: Settings | None = None) -> Flask:

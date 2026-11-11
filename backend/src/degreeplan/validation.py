@@ -48,6 +48,7 @@ class PlanSemesterIn(_Strict):
 
 class CourseProgressIn(_Strict):
     status: Literal["Not Started", "In Progress", "Completed"]
+    grade: Literal["A", "B", "C", "D", "F"] | None = None
 
 
 def parse_body(model: type[T]) -> T:

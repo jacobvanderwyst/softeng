@@ -34,7 +34,8 @@ def test_refresh_passwords_preserves_data_and_other_accounts(app, alice, teacher
     assert saved["name"] == "Keep me"
     assert saved["semesters"] == [{"term_index": 1, "name": "Spring 2027"}]
     assert saved["courses"][0]["course_id"] == 1
-    assert student.get("/api/v1/progress").get_json()["items"] == [{"course_id": 1, "status": "Completed"}]
+    assert student.get("/api/v1/progress").get_json()["items"] == [
+        {"course_id": 1, "status": "Completed", "grade": None}]
     teacher = ApiClient(app)
     assert teacher.login("teacher1", credentials["teacher1"]).status_code == 200
     assert teacher.get("/api/v1/plans?student_id=1").status_code == 200

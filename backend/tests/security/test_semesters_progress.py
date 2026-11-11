@@ -32,10 +32,10 @@ def test_progress_is_scoped_to_logged_in_student_even_with_query_override(alice,
     set_progress(alice)
     set_progress(bob, 1, "In Progress", query_string={"student_id": 1})
     assert bob.get("/api/v1/progress?student_id=1").get_json() == {
-        "items": [{"course_id": 1, "status": "In Progress"}],
+        "items": [{"course_id": 1, "status": "In Progress", "grade": None}],
     }
     assert alice.get("/api/v1/progress?student_id=2").get_json() == {
-        "items": [{"course_id": 1, "status": "Completed"}],
+        "items": [{"course_id": 1, "status": "Completed", "grade": None}],
     }
 
 
@@ -50,12 +50,12 @@ def test_staff_progress_reads_require_target_and_existing_access(alice, carol, t
         assert set_progress(client).status_code == 403
         assert set_progress(client, query_string={"student_id": 1}).status_code == 403
     assert teacher1.get("/api/v1/progress?student_id=1").get_json() == {
-        "items": [{"course_id": 1, "status": "Completed"}],
+        "items": [{"course_id": 1, "status": "Completed", "grade": None}],
     }
     assert teacher1.get("/api/v1/progress?student_id=3").status_code == 404
     assert teacher2.get("/api/v1/progress?student_id=1").status_code == 404
     assert teacher2.get("/api/v1/progress?student_id=3").get_json() == {
-        "items": [{"course_id": 2, "status": "In Progress"}],
+        "items": [{"course_id": 2, "status": "In Progress", "grade": None}],
     }
     for student_id in (1, 2, 3):
         assert admin.get(f"/api/v1/progress?student_id={student_id}").status_code == 200

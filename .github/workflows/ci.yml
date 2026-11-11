@@ -40,6 +40,11 @@ jobs:
         run: node --test ../tests/frontend/*.test.mjs
       - name: Production-path smoke test (real server, secret files, proxy headers)
         run: python scripts/production_smoke_test.py
+      - name: Build and verify installed production wheel
+        run: |
+          .\scripts\build_release.ps1 -PythonExe (Get-Command python).Source -OutDir (Join-Path (Get-Location) 'dist')
+          $wheel = (Get-ChildItem dist -Recurse -Filter *.whl | Select-Object -First 1).FullName
+          python scripts/installed_smoke_test.py $wheel
       - name: Vulnerable dependencies
         run: pip-audit -r requirements/prod.txt --no-deps --disable-pip
 

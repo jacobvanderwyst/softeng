@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const source = await readFile(new URL("../../backend/src/degreeplan/frontend/model.js", import.meta.url), "utf8");
-const { courseStatus, progressSummary, semesterList, semesterOrder, subjectOf } =
+const { GRADES, courseStatus, gpaDisplay, progressSummary, semesterList, semesterOrder, subjectOf } =
   await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
 
 test("progress only counts completed requirements, not unrelated courses or planned credits", () => {
@@ -48,4 +48,16 @@ test("calendar terms sort chronologically across years", () => {
   assert.ok(semesterOrder("Spring 2027") < semesterOrder("Summer 2027"));
   assert.ok(semesterOrder("Summer 2027") < semesterOrder("Fall 2027"));
   assert.equal(semesterOrder("Term 1"), null);
+});
+
+test("GPA presentation formats server values without recalculating or treating null as zero", () => {
+  assert.deepEqual(GRADES, ["A", "B", "C", "D", "F"]);
+  assert.deepEqual(gpaDisplay(null), { gpa: "—", credits: "0", qualityPoints: "0.00", courses: "0" });
+  assert.deepEqual(gpaDisplay({ gpa: null, graded_credits: 0, quality_points: 0, graded_courses: 0 }),
+    { gpa: "—", credits: "0", qualityPoints: "0.00", courses: "0" });
+  assert.deepEqual(gpaDisplay({ gpa: 0, graded_credits: 4, quality_points: 0, graded_courses: 1 }),
+    { gpa: "0.00", credits: "4", qualityPoints: "0.00", courses: "1" });
+  assert.deepEqual(gpaDisplay({ gpa: 2.86, graded_credits: 7, quality_points: 20, graded_courses: 2 }),
+    { gpa: "2.86", credits: "7", qualityPoints: "20.00", courses: "2" });
+  assert.equal(gpaDisplay({ gpa: NaN }).gpa, "—");
 });

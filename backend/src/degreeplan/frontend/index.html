@@ -1,102 +1,139 @@
+<!-- Presentation adapted from TacticalTrunkMonkey443/EduNav-2.0 @ 7db3e17f7ef14469df4ba50b6a3090c87a99a395; data and auth are server-backed. -->
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>EduNav 2.0</title>
+
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="integration.css">
 </head>
 
 <body>
 
-<header class="navbar">
+    <!-- NAVIGATION -->
 
-    <div class="logo">
-        <h1>EduNav 2.0</h1>
-        <span>Student Course Planner</span>
-    </div>
+    <header class="navbar">
 
-    <nav>
-        <a href="index.html">Dashboard</a>
-        <a href="degree.html">My Degree</a>
-        <a href="planner.html">Planner</a>
-        <a href="courses.html">Courses</a>
-    </nav>
+        <div class="logo">
+            <h1>EduNav 2.0</h1>
+            <span>Student Course Planner</span>
+        </div>
 
-</header>
+        <nav>
+            <a href="index.html">Dashboard</a>
+            <a href="degree.html">My Degree</a>
+            <a href="planner.html">Planner</a>
+            <a href="courses.html">Courses</a>
+        </nav>
 
-<main class="dashboard" hidden>
+    </header>
 
-    <!-- WELCOME SECTION -->
+    <main class="dashboard" hidden>
 
-    <section class="welcome">
-        <p>STUDENT DASHBOARD</p>
-        <h2>Computer Science B.S.</h2>
-        <span>Student-reported planning ? not an official degree audit</span>
-    </section>
+        <!-- WELCOME SECTION -->
 
+        <section class="welcome">
+            <p>STUDENT DASHBOARD</p>
+            <h2>No degree program</h2>
+            <span>Self-reported planning - not an official degree audit</span>
+        </section>
 
-    <!-- DEGREE PROGRESS -->
+        <!-- DEGREE PROGRESS -->
 
-    <section class="progress-card">
+        <section class="progress-card">
 
-        <div class="progress-header">
+            <div class="progress-header">
 
-            <div>
-                <h3>Degree Progress</h3>
-                <p>Your progress toward graduation</p>
+                <div>
+                    <h3>Degree Progress</h3>
+                    <p>Self-reported course status, not graduation eligibility</p>
+                </div>
+
+                <h2 id="dashboardProgressPercent">0%</h2>
+
             </div>
 
-            <h2 id="dashboardProgressPercent">0%</h2>
+            <div class="progress-bar">
 
-        </div>
+                <div
+                    class="progress-fill"
+                    id="dashboardProgressFill"
+                    style="width: 0%;">
+                </div>
 
-        <div class="progress-bar">
-
-            <div
-                class="progress-fill"
-                id="dashboardProgressFill"
-                style="width: 0%;">
             </div>
 
-        </div>
+            <div class="credit-info">
 
-        <div class="credit-info">
+                <strong id="dashboardCompletedCredits">0</strong>
+                of
+                <strong id="dashboardRequiredCredits">0</strong>
+                credit hours marked Completed (not earned credits)
 
-            <strong id="dashboardCompletedCredits">0</strong>
-            of
-            <strong id="dashboardRequiredCredits">120</strong>
-            credit hours completed
+            </div>
 
-        </div>
+        </section>
 
-    </section>
+        <!-- GPA OVERVIEW -->
 
+        <section class="dashboard-gpa-section">
 
-    <!-- DEGREE REQUIREMENTS -->
+            <div class="dashboard-gpa-card">
 
-    <section class="requirements">
+                <h3>Self-reported Planning GPA</h3>
 
-        <div class="section-title">
-            <h2>Degree Requirements</h2>
-            <p>Track your courses and degree completion</p>
-        </div>
+                <h2 id="dashboardGPA">—</h2>
 
-        <div class="course-list" id="dashboardRequirements"></div>
-    </section>
+                <p>Based on completed graded courses</p>
 
-</main>
+            </div>
 
+            <div class="dashboard-gpa-card">
 
-<!-- SHARED STUDENT DATA -->
+                <h3>Graded Credit Hours</h3>
 
+                <h2 id="dashboardGradedCredits">0</h2>
 
+                <p>Credits included in GPA</p>
 
-<!-- DASHBOARD FUNCTIONALITY -->
+            </div>
 
+            <div class="dashboard-gpa-card">
 
+                <h3>Quality Points</h3>
+
+                <h2 id="dashboardQualityPoints">0.00</h2>
+
+                <p>Grade points × credit hours</p>
+
+            </div>
+
+        </section>
+
+        <p class="dashboard-gpa-note">Server-calculated planning GPA includes all your completed graded positive-credit courses, across plans. Ungraded and non-completed courses are excluded. Saved grades are retained when status changes. A=4, B=3, C=2, D=1, F=0; no plus/minus, retake or transfer policy. Not an official institutional GPA; GPA credits are not earned credits.</p>
+
+        <!-- DEGREE REQUIREMENTS -->
+
+        <section class="requirements">
+
+            <div class="section-title">
+                <h2>Degree Requirements</h2>
+                <p>Track your courses and degree completion</p>
+            </div>
+
+            <div class="course-list" id="dashboardRequirements"></div>
+
+        </section>
+
+    </main>
+
+    <!-- SHARED STUDENT DATA -->
+
+    <!-- DASHBOARD FUNCTIONALITY -->
 
     <script type="module" src="app.js"></script>
 </body>

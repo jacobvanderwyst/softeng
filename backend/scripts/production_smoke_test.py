@@ -11,6 +11,7 @@ import os
 import pathlib
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -20,9 +21,12 @@ tmp = pathlib.Path(tempfile.mkdtemp(prefix="dp-smoke-"))
 (tmp / "secrets").mkdir()
 (tmp / "data").mkdir()
 (tmp / "secrets" / "secret_key").write_text(secrets.token_urlsafe(48))
-PORT = 8765
+with socket.socket() as reservation:
+    reservation.bind(("localhost", 0))
+    PORT = reservation.getsockname()[1]
 env = dict(
-    os.environ,
+    {key: value for key, value in os.environ.items()
+     if key.upper() in {"SYSTEMROOT", "WINDIR", "PATH", "TEMP", "TMP", "COMSPEC", "PATHEXT"}},
     APP_ENV="production",
     SECRET_KEY_FILE=str(tmp / "secrets" / "secret_key"),
     USERS_DATABASE_URL=f"sqlite:///{(tmp / 'data' / 'users.sqlite3').as_posix()}",
@@ -107,7 +111,7 @@ try:
     flags = ("Secure", "HttpOnly", "SameSite=Lax")
     check("cookie is __Host-sid, Secure, HttpOnly, SameSite=Lax, no Domain",
           cookie_header.startswith("__Host-sid=") and all(a in cookie_header for a in flags)
-          and "Domain" not in cookie_header, cookie_header[:60])
+          and "Domain" not in cookie_header, "cookie attributes missing or incorrect")
     check("HSTS and security headers present", bool(resp.getheader("Strict-Transport-Security"))
           and resp.getheader("X-Content-Type-Options") == "nosniff")
     cookie = {"Cookie": cookie_header.split(";")[0]}

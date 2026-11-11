@@ -37,8 +37,10 @@ def upgrade(engine: Engine, target: str, revision: str = "head") -> None:
 
 
 def stamp(engine: Engine, target: str, revision: str = "head") -> None:
-    """Mark an existing database as being at ``revision`` without running migrations."""
+    """Adopt only schemas proven to match a known revision."""
+    from .verify import validate_schema
     with engine.begin() as conn:
+        validate_schema(conn, target, revision)
         command.stamp(_config(target, conn), revision)
 
 

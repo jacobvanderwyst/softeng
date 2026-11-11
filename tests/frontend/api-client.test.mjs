@@ -30,6 +30,13 @@ test("browser API contract", async (t) => {
     await api.progress.set(4, "Completed");
     assert.equal(calls.at(-1).url, "/api/v1/progress/4");
     assert.deepEqual(JSON.parse(calls.at(-1).body), { status: "Completed" });
+    await api.progress.set(4, "Completed", "F");
+    assert.deepEqual(JSON.parse(calls.at(-1).body), { status: "Completed", grade: "F" });
+    assert.equal(calls.at(-1).headers["X-CSRF-Token"], "test-csrf");
+    await api.progress.set(4, "In Progress");
+    assert.deepEqual(JSON.parse(calls.at(-1).body), { status: "In Progress" });
+    await api.progress.set(4, "Completed", null);
+    assert.deepEqual(JSON.parse(calls.at(-1).body), { status: "Completed", grade: null });
     result = response(null, 204);
     assert.equal(await api.plans.removeSemester(5, 2), null);
   });
@@ -41,6 +48,38 @@ test("browser API contract", async (t) => {
     assert.equal(url.searchParams.get("offset"), "100");
     await api.progress.list(7);
     assert.equal(calls.at(-1).url, "/api/v1/progress?student_id=7");
+    await api.progress.summary(7);
+    assert.equal(calls.at(-1).url, "/api/v1/progress/summary?student_id=7");
+    const summary = { gpa: 2.86, graded_credits: 7, quality_points: 20, graded_courses: 2 };
+    result = response(summary);
+    assert.deepEqual(await api.progress.summary(), summary);
+    assert.equal(calls.at(-1).url, "/api/v1/progress/summary");
+  });
+  await t.test("password change uses CSRF and the existing field contract", async () => {
+    result = response({ ok: true });
+    await api.changePassword("test-current", "test-new");
+    assert.equal(calls.at(-1).url, "/api/v1/auth/change-password");
+    assert.equal(calls.at(-1).method, "POST");
+    assert.equal(calls.at(-1).headers["X-CSRF-Token"], "test-csrf");
+    assert.deepEqual(JSON.parse(calls.at(-1).body),
+      { current_password: "test-current", new_password: "test-new" });
+  });
+  await t.test("wrong current password stays in form but expired sessions trigger sign-in", async () => {
+    let expired = 0;
+    configureApi({ onUnauthorized: () => { expired++; } });
+    globalThis.fetch = async (url, options) => {
+      calls.push({ url, ...options });
+      return url.endsWith("/auth/me")
+        ? response({ user: { role: "student" }, csrf_token: "test-csrf" })
+        : response({ error: { message: "Current password is incorrect." } }, 401);
+    };
+    await assert.rejects(api.changePassword("wrong", "test-new"),
+      (error) => error.message === "Current password is incorrect.");
+    assert.equal(expired, 0);
+    globalThis.fetch = async () => response({ error: { message: "Sign in" } }, 401);
+    await assert.rejects(api.changePassword("test-current", "test-new"), ApiError);
+    assert.equal(expired, 1);
+    globalThis.fetch = async (url, options) => { calls.push({ url, ...options }); return result; };
   });
   await t.test("structured errors expose validation and retry information", async () => {
     result = response({ error: { code: "too_many_requests", message: "Wait", request_id: "req-1" } },

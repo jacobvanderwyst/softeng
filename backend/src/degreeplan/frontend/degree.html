@@ -1,12 +1,11 @@
+<!-- Presentation adapted from TacticalTrunkMonkey443/EduNav-2.0 @ 7db3e17f7ef14469df4ba50b6a3090c87a99a395; data and auth are server-backed. -->
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>My Degree | EduNav 2.0</title>
-
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="integration.css">
 </head>
@@ -16,7 +15,6 @@
     <!-- NAVIGATION -->
 
     <header class="navbar">
-
         <div class="logo">
             <h1>EduNav 2.0</h1>
             <span>Student Course Planner</span>
@@ -28,162 +26,156 @@
             <a href="planner.html">Planner</a>
             <a href="courses.html">Courses</a>
         </nav>
-
     </header>
-
-
-    <!-- MAIN DEGREE PAGE -->
 
     <main class="dashboard" hidden>
 
+        <!-- WELCOME -->
+
         <section class="welcome">
-
             <p>DEGREE TRACKER</p>
-
             <h2>My Degree Progress</h2>
-
             <span>
-                Track your completed courses and progress toward graduation.
+                Track completed courses, academic progress,
+                and self-reported planning GPA.
             </span>
-
         </section>
-
 
         <!-- DEGREE OVERVIEW -->
 
         <section class="degree-overview">
 
             <div class="degree-overview-header">
-
                 <div>
-
-                    <p class="degree-label">CURRENT DEGREE PROGRAM</p>
+                    <p class="degree-label">
+                        CURRENT DEGREE PROGRAM
+                    </p>
 
                     <h2 id="degreeProgramName">
-                        Computer Science B.S.
+                        No degree program
                     </h2>
 
                     <p class="degree-university">
-                        Student-reported planning ? not an official degree audit
+                        Self-reported planning - not an official degree audit
                     </p>
-
                 </div>
 
                 <div class="degree-program-select">
-
-                    <label for="degreeSelect">Degree Program</label>
+                    <label for="degreeSelect">
+                        Degree Program
+                    </label>
 
                     <select id="degreeSelect">
-                        <option value="computerScience">
-                            Computer Science B.S.
+                        <option value="">
+                            No degree program
                         </option>
                     </select>
-
                 </div>
-
             </div>
 
-
-            <!-- DEGREE PROGRESS -->
+            <!-- GRADUATION PROGRESS -->
 
             <div class="degree-progress-header">
-
-                <h3>Graduation Progress</h3>
-
+                <h3>Status-based Planning Progress</h3>
                 <strong id="degreeProgressPercent">0%</strong>
-
             </div>
 
             <div class="degree-progress-track">
-
                 <div
                     class="degree-progress-fill"
-                    id="degreeProgressFill"
-                ></div>
-
+                    id="degreeProgressFill">
+                </div>
             </div>
 
             <p class="degree-progress-description">
                 <span id="degreeCompletedCredits">0</span>
                 of
-                <span id="degreeRequiredCredits">120</span>
-                credit hours completed
+                <span id="degreeRequiredCredits">0</span>
+                credit hours marked Completed (not earned credits)
             </p>
 
-            <p class="degree-demo-note">
-                Demonstration degree plan — not an official SHSU degree audit.
-            </p>
+            <!-- GPA OVERVIEW -->
+
+            <div class="degree-gpa-overview">
+
+                <div class="degree-gpa-card">
+                    <p>Self-reported Planning GPA</p>
+                    <h2 id="degreeGPA">—</h2>
+                    <small>4.00 grading scale</small>
+                </div>
+
+                <div class="degree-gpa-card">
+                    <p>Graded Credit Hours</p>
+                    <h2 id="degreeGPACredits">0</h2>
+                    <small>Credits included in GPA</small>
+                </div>
+
+                <div class="degree-gpa-card">
+                    <p>Quality Points</p>
+                    <h2 id="degreeQualityPoints">0.00</h2>
+                    <small>Grade points × credit hours</small>
+                </div>
+
+            </div>
+
+            <p class="degree-gpa-note">Server-calculated planning GPA includes all your completed graded positive-credit courses, across plans. Ungraded and non-completed courses are excluded. Saved grades are retained when status changes. A=4, B=3, C=2, D=1, F=0; no plus/minus, retake or transfer policy. Not an official institutional GPA; GPA credits are not earned credits.</p>
+
+            <p class="degree-demo-note">Not an official GPA or degree audit. A status of Completed does not establish earned credits; an F does not award credit.</p>
 
         </section>
-
 
         <!-- DEGREE STATISTICS -->
 
         <section class="degree-stats">
 
             <div class="degree-stat-card">
-
                 <p>Total Requirements</p>
-
                 <h2 id="totalRequirements">0</h2>
-
             </div>
 
             <div class="degree-stat-card">
-
                 <p>Completed Courses</p>
-
                 <h2 id="completedRequirements">0</h2>
-
             </div>
 
             <div class="degree-stat-card">
-
                 <p>In Progress</p>
-
                 <h2 id="inProgressRequirements">0</h2>
-
             </div>
 
             <div class="degree-stat-card">
-
                 <p>Remaining Courses</p>
-
                 <h2 id="remainingRequirements">0</h2>
-
             </div>
 
         </section>
 
-
-        <!-- REQUIREMENTS CONTROLS -->
+        <!-- REQUIREMENTS -->
 
         <section class="degree-requirements-section">
 
             <div class="degree-section-heading">
-
                 <div>
                     <h2>Degree Requirements</h2>
-
                     <p>
-                        Review your academic requirements and update course progress.
+                        Review academic requirements,
+                        update course progress, and enter grades.
                     </p>
                 </div>
 
                 <button
                     id="resetDegreeButton"
                     class="degree-reset-button"
-                >
+                    type="button">
                     Reset Progress
                 </button>
-
             </div>
 
+            <!-- FILTERS -->
 
             <div class="degree-controls">
 
                 <div class="degree-search">
-
                     <label for="degreeSearch">
                         Search Requirements
                     </label>
@@ -191,62 +183,46 @@
                     <input
                         type="search"
                         id="degreeSearch"
-                        placeholder="Search by course code or name..."
-                    >
-
+                        placeholder="Search by course code or name...">
                 </div>
-
 
                 <div class="degree-filter-grid">
 
                     <div>
-
                         <label for="degreeCategoryFilter">
                             Requirement Category
                         </label>
 
                         <select id="degreeCategoryFilter">
-                            <option value="all">All Categories</option>
+                            <option value="all">
+                                All Categories
+                            </option>
                         </select>
-
                     </div>
 
-
                     <div>
-
                         <label for="degreeStatusFilter">
                             Completion Status
                         </label>
 
                         <select id="degreeStatusFilter">
-
                             <option value="all">All Statuses</option>
-
                             <option value="Completed">Completed</option>
-
                             <option value="In Progress">In Progress</option>
-
                             <option value="Not Started">Not Started</option>
-
                         </select>
-
                     </div>
 
                 </div>
-
             </div>
 
-
-            <!-- REQUIREMENTS LIST -->
+            <!-- COURSE REQUIREMENTS -->
 
             <div class="degree-list-header">
-
                 <h3>Course Requirements</h3>
-
                 <span id="degreeResultCount">
                     0 requirements found
                 </span>
-
             </div>
 
             <div id="degreeRequirementsList"></div>
@@ -254,59 +230,58 @@
             <div
                 id="degreeEmptyState"
                 class="degree-empty-state"
-                hidden
-            >
+                hidden>
                 No requirements match your search.
             </div>
 
         </section>
 
-
         <!-- GRADUATION SUMMARY -->
 
         <section class="degree-summary">
 
-            <h2>Graduation Summary</h2>
+            <h2>Planning Summary</h2>
 
             <p>
-                Monitor your remaining credit hours and academic requirements.
+                Monitor your remaining credit hours,
+                academic requirements, and GPA.
             </p>
 
             <div class="degree-summary-grid">
 
                 <div>
-
-                    <span>Completed Credits</span>
-
+                    <span>Credits Marked Completed</span>
                     <strong id="summaryCompletedCredits">0</strong>
-
                 </div>
 
                 <div>
-
-                    <span>Remaining Credits</span>
-
+                    <span>Unmarked Planning Credits</span>
                     <strong id="summaryRemainingCredits">0</strong>
-
                 </div>
 
                 <div>
-
                     <span>Courses Remaining</span>
-
                     <strong id="summaryRemainingCourses">0</strong>
-
                 </div>
 
+            </div>
+
+            <div class="degree-gpa-summary">
+                <span>Current Self-reported Planning GPA</span>
+                <div>
+                    <strong id="summaryGPA">—</strong>
+                    <span> / 4.00</span>
+                </div>
+
+                <p id="summaryGPADescription">
+                    Enter grades for completed courses
+                    to calculate your GPA.
+                </p>
             </div>
 
         </section>
 
     </main>
-
-
-    
-
 
     <script type="module" src="app.js"></script>
 </body>

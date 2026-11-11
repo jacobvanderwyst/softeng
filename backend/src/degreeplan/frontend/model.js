@@ -1,5 +1,17 @@
 // Pure presentation rules shared by all pages and the dependency-free Node tests.
 export const STATUSES = ["Not Started", "In Progress", "Completed"];
+export const GRADES = ["A", "B", "C", "D", "F"];
+
+// The server owns weighting, eligibility and rounding; never derive GPA from the selected plan.
+export function gpaDisplay(summary) {
+  return {
+    gpa: typeof summary?.gpa === "number" && Number.isFinite(summary.gpa)
+      ? summary.gpa.toFixed(2) : "—",
+    credits: String(summary?.graded_credits ?? 0),
+    qualityPoints: Number(summary?.quality_points ?? 0).toFixed(2),
+    courses: String(summary?.graded_courses ?? 0),
+  };
+}
 
 export function courseStatus(items, courseId) {
   return items.find((item) => item.course_id === courseId)?.status ?? "Not Started";

@@ -36,7 +36,7 @@ def test_forward_migration_preserves_legacy_data_without_seeding_or_backfill(tmp
         migrate.upgrade(dbs.plans, "plans")
         migrate.upgrade(dbs.plans, "plans")
         with dbs.plans.connect() as conn:
-            assert migrate.current_revision(conn) == "plans_0002"
+            assert migrate.current_revision(conn) == "plans_0003"
             for table in (programs, courses, plans, plan_courses):
                 assert conn.execute(sa.select(table)).all() == before[table.name]
             assert conn.execute(sa.select(plan_semesters)).all() == []

@@ -31,7 +31,160 @@ button:disabled, select:disabled { cursor: not-allowed; opacity: .65; }
 .planner-empty { padding: 24px; background: white; border-radius: 12px; }
 .degree-status-select { max-width: 180px; }
 .empty-note { padding: 16px; color: #475569; }
+.password-settings summary { cursor: pointer; font-weight: 600; }
+.password-form { display: grid; gap: 10px; max-width: 400px; padding: 16px; background: white; color: #1e293b; }
+.password-form input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
+.password-form p { line-height: 1.5; }
+.degree-grade-control small { max-width: 190px; color: #475569; }
 @media (max-width: 600px) {
     .workspace-controls { align-items: stretch; flex-direction: column; }
     .workspace-form { flex-direction: column; align-items: stretch; }
 }
+
+/* GPA presentation from pinned upstream 7db3e17f7ef14469df4ba50b6a3090c87a99a395. */
+
+        /* ======================================
+           DASHBOARD GPA ADDITIONS
+        ====================================== */
+
+        .dashboard-gpa-section {
+            display: grid;
+            grid-template-columns: repeat(
+                auto-fit,
+                minmax(200px, 1fr)
+            );
+            gap: 16px;
+            margin-top: 20px;
+            margin-bottom: 30px;
+        }
+
+        .dashboard-gpa-card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            border: 1px solid #eeeeee;
+        }
+
+        .dashboard-gpa-card h3 {
+            margin: 0 0 10px;
+            font-size: 15px;
+            color: #555;
+        }
+
+        .dashboard-gpa-card h2 {
+            margin: 0;
+            font-size: 30px;
+            color: #f58220;
+        }
+
+        .dashboard-gpa-card p {
+            margin: 10px 0 0;
+            font-size: 13px;
+            color: #777;
+        }
+
+        .dashboard-gpa-note {
+            margin: 0 0 25px;
+            font-size: 13px;
+            color: #666;
+        }
+
+
+        /* GPA additions to existing My Degree design */
+
+        .degree-gpa-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .degree-gpa-card {
+            background: #fff7ef;
+            border: 1px solid #f3d4b7;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .degree-gpa-card p {
+            margin: 0 0 8px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .degree-gpa-card h2 {
+            margin: 0;
+            font-size: 30px;
+            color: #d96b0b;
+        }
+
+        .degree-gpa-card small {
+            display: block;
+            margin-top: 8px;
+            color: #666;
+        }
+
+        .degree-grade-control {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 115px;
+        }
+
+        .degree-grade-control label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .degree-grade-select {
+            padding: 9px;
+            border: 1px solid #ccc;
+            border-radius: 7px;
+            background: white;
+            color: #222;
+            font-size: 14px;
+        }
+
+        .degree-grade-select:focus {
+            outline: 2px solid #f58220;
+            outline-offset: 2px;
+        }
+
+        .degree-grade-select:disabled {
+            background: #f1f1f1;
+            color: #888;
+            cursor: not-allowed;
+        }
+
+        .degree-gpa-note {
+            margin-top: 16px;
+            font-size: 13px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .degree-gpa-summary {
+            margin-top: 20px;
+            padding: 20px;
+            background: #fff7ef;
+            border-radius: 10px;
+        }
+
+        .degree-gpa-summary strong {
+            color: #d96b0b;
+            font-size: 24px;
+        }
+
+        .degree-gpa-summary p {
+            margin-top: 8px;
+            color: #555;
+        }
+
+        @media (max-width: 700px) {
+            .degree-course-actions {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+        }

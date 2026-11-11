@@ -10,13 +10,15 @@ def set_progress(client, course_id=1, status="Completed", **kwargs):
 
 def test_progress_statuses_upsert_and_order_without_plans(alice):
     assert alice.get("/api/v1/progress").get_json() == {"items": []}
-    assert set_progress(alice, 4, "In Progress").get_json() == {"course_id": 4, "status": "In Progress"}
+    assert set_progress(alice, 4, "In Progress").get_json() == {
+        "course_id": 4, "status": "In Progress", "grade": None}
     for status in ("Completed", "Not Started", "In Progress"):
         resp = set_progress(alice, 1, status)
         assert resp.status_code == 200
-        assert resp.get_json() == {"course_id": 1, "status": status}
+        assert resp.get_json() == {"course_id": 1, "status": status, "grade": None}
     assert alice.get("/api/v1/progress").get_json() == {"items": [
-        {"course_id": 1, "status": "In Progress"}, {"course_id": 4, "status": "In Progress"},
+        {"course_id": 1, "status": "In Progress", "grade": None},
+        {"course_id": 4, "status": "In Progress", "grade": None},
     ]}
     assert alice.get("/api/v1/plans").get_json() == {"items": []}
 
@@ -55,4 +57,5 @@ def test_progress_unknown_courses_and_non_json(alice):
 def test_progress_persists_across_app_restart(app, make_app, alice):
     set_progress(alice, 1)
     restarted = logged_in(make_app(fresh=False), "alice")
-    assert restarted.get("/api/v1/progress").get_json() == {"items": [{"course_id": 1, "status": "Completed"}]}
+    assert restarted.get("/api/v1/progress").get_json() == {
+        "items": [{"course_id": 1, "status": "Completed", "grade": None}]}

@@ -21,6 +21,19 @@ The two databases are separate on purpose. There are **no cross-database foreign
 `plans.student_id` are plain integers that the application validates (a plan is only served after the users database
 says the caller may see that student). Either database can therefore move to its own server by changing its URL.
 
+## What the backend contributes
+
+The frontend is the interface: HTML/CSS, navigation, forms, filters and status/GPA presentation.
+The backend is the trusted system of record: authentication, password hashing, revocable sessions, CSRF protection,
+role/ownership checks, shared persistent data, input validation, catalog/prerequisite/credit checks, grade/GPA rules,
+migrations, controlled imports, account/profile management, audit events and database verification.
+Hiding a button or validating a form in JavaScript is not authorization; every protected API action validates the caller.
+Browser-only localStorage records are not shared, trusted institutional records and are not imported automatically.
+
+Production and demo use the same maintained application and migrations but different databases, secrets and lifecycle
+commands. Production creates empty owned SQLite databases outside the repository; the demo uses a guarded,
+explicitly owned repository-local pair. See the platform quickstarts for actual paths and HTTPS setup.
+
 ## Code layout (`backend/src/degreeplan`)
 
 | Area | Purpose |
@@ -75,7 +88,7 @@ request log line.
 ## EduNav frontend and persisted progress
 
 The frontend is a dependency-free set of ES modules and static pages, based on EduNav-2.0 commit
-`cde138a9e5133c6b189be8bb4787a7492fa6b6c4`. Flask serves only enumerated public assets, never arbitrary package
+`7db3e17f7ef14469df4ba50b6a3090c87a99a395`. Flask serves only enumerated public assets, never arbitrary package
 files. Frontend responses use a separate CSP allowing same-origin scripts, styles, API connections and inline style
 properties (used for progress bars). API responses retain their default-deny CSP. Tokens remain in memory;
 no student state or authentication tokens are stored in localStorage.
@@ -87,6 +100,12 @@ deleting a plan leaves the student's independent progress intact.
 foreign key to students. Student ownership is checked in the users database on every call. Teachers may read assigned
 students and admins may read any student; neither can edit progress or plans.
 Progress is not official transcript evidence and does not override existing prerequisite-order validation.
+`student_course_progress.grade` stores nullable A/B/C/D/F self-reported grades. Status-only updates preserve a grade;
+null clears it. The server's `/progress/summary` uses all completed, validly graded, positive-credit catalog records,
+including zero quality points for F, and rounds weighted GPA HALF_UP to two decimals. Uncompleted courses retain
+grades but do not contribute. The UI consumes this summary, not a browser-local GPA calculation.
+Status-marked planning credits are not verified earned credits. Retakes, transfer equivalencies, +/- grades,
+GPA forgiveness, academic standing and full institutional degree-audit rules are not implemented.
 
 ## API reference
 
@@ -123,7 +142,8 @@ Base path `/api/v1`. JSON in, JSON out. Errors always look like
 | `PUT /plans/{id}/semesters` | owner | `{term_index (1-16), name (1-120 chars)}` | detailed plan including `semesters[{term_index, name}]` |
 | `DELETE /plans/{id}/semesters/{term_index}` | owner | | `204`; deletes semester and its planned courses |
 | `GET /progress` | student; staff with authorized `?student_id=` | | `{items: [{course_id, status}]}` |
-| `PUT /progress/{course_id}` | student (own record only) | `{status: "Not Started" / "In Progress" / "Completed"}` | `{course_id, status}` |
+| `PUT /progress/{course_id}` | student (own record only) | `{status, grade?: "A"/"B"/"C"/"D"/"F"/null}` | `{course_id, status, grade}`; omitted grade is preserved |
+| `GET /progress/summary` | student; staff with authorized `?student_id=` | | `{gpa, graded_credits, quality_points, graded_courses}` |
 | `GET /health/live`, `GET /health/ready` | anyone | | `{status}` (`ready` also checks both databases and their migration revision) |
 
 Issue types: `missing_prerequisite`, `prerequisite_order`, `term_credit_limit`, `missing_requirement`. A plan is valid

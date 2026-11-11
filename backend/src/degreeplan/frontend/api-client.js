@@ -59,7 +59,7 @@ async function request(method, path, body) {
     // A 401 on a protected call means the session ended (logout elsewhere, idle timeout, deactivation).
     // Not for login ("wrong username or password": the caller shows that) nor for /auth/me, which
     // restoreSession() uses on page load where "not logged in yet" is a normal answer.
-    if (response.status === 401 && path !== "/auth/login" && path !== "/auth/me") {
+    if (response.status === 401 && !["/auth/login", "/auth/me", "/auth/change-password"].includes(path)) {
       csrfToken = null;
       onUnauthorized(error);
     }
@@ -101,8 +101,16 @@ export const api = {
     csrfToken = null;
   },
 
-  changePassword: (currentPassword, newPassword) =>
-    request("POST", "/auth/change-password", { current_password: currentPassword, new_password: newPassword }),
+  async changePassword(currentPassword, newPassword) {
+    try {
+      return await request("POST", "/auth/change-password",
+        { current_password: currentPassword, new_password: newPassword });
+    } catch (error) {
+      // This endpoint also returns 401 for a wrong current password; don't redirect a valid session.
+      if (error.status === 401 && !(await api.restoreSession())) onUnauthorized(error);
+      throw error;
+    }
+  },
 
   courses: {
     list: ({ q, limit = 25, offset = 0 } = {}) => request("GET", `/courses${qs({ q, limit, offset })}`),
@@ -116,7 +124,10 @@ export const api = {
 
   progress: {
     list: (studentId) => request("GET", `/progress${qs({ student_id: studentId })}`),
-    set: (courseId, status) => request("PUT", `/progress/${courseId}`, { status }),
+    summary: (studentId) => request("GET", `/progress/summary${qs({ student_id: studentId })}`),
+    // Omit grade to preserve it; explicit null clears it. Status changes retain saved grades.
+    set: (courseId, status, grade = undefined) =>
+      request("PUT", `/progress/${courseId}`, { status, ...(grade === undefined ? {} : { grade }) }),
   },
   plans: {
     /** Students: their own plans. Teachers/admins: pass the student's id. */

@@ -94,6 +94,8 @@ def load_dotenv_for_development(env: dict[str, str] | None = None) -> None:
     Real environment variables always win, and APP_ENV can never be set from the file.
     """
     target = os.environ if env is None else env
+    if target.get("EDUNAV_DEMO") == "1":
+        return  # The managed demo must never inherit a dotenv database or secret-file redirect.
     if target.get("APP_ENV", "").strip().lower() != "development":
         return
     path = BACKEND_DIR / ".env"
@@ -171,6 +173,8 @@ class Settings:
         if name not in ENVIRONMENTS:
             raise ConfigError(f"APP_ENV must be set to one of: {', '.join(ENVIRONMENTS)}")
         development = name == "development"
+        if env.get("EDUNAV_DEMO") == "1":
+            _validate_managed_demo(env, name)
 
         secret = _read_secret(env, "SECRET_KEY")
         if not secret:
@@ -254,6 +258,10 @@ class Settings:
             raise ConfigError("SESSION_IDLE_TIMEOUT must not exceed SESSION_ABSOLUTE_TIMEOUT")
         if self.users_database_url == self.plans_database_url:
             raise ConfigError("USERS_DATABASE_URL and PLANS_DATABASE_URL must point to different databases")
+        users_path = sqlite_file_path(self.users_database_url)
+        plans_path = sqlite_file_path(self.plans_database_url)
+        if users_path is not None and plans_path is not None and users_path.resolve() == plans_path.resolve():
+            raise ConfigError("USERS_DATABASE_URL and PLANS_DATABASE_URL must point to different databases")
         if self.is_production:
             self._validate_production()
 
@@ -273,6 +281,16 @@ class Settings:
                 continue
             if not path.is_absolute():
                 raise ConfigError(f"{label}: SQLite path must be absolute in production")
+            from .devtools.demo_guard import MARKER_NAME, DemoSafetyError, assert_plain_path
+
+            try:
+                assert_plain_path(path)
+            except DemoSafetyError as exc:
+                raise ConfigError(str(exc)) from None
+            if str(path).startswith(("\\\\", "//")):
+                raise ConfigError(f"{label}: production SQLite files must be on a local disk")
+            if (path.parent / MARKER_NAME).exists():
+                raise ConfigError(f"{label}: production cannot use a demo-owned database directory")
             resolved = path.resolve()
             if BACKEND_DIR in resolved.parents or (BACKEND_DIR.parent / ".git").exists() and (
                 BACKEND_DIR.parent in resolved.parents
@@ -282,3 +300,29 @@ class Settings:
             raise ConfigError("RATELIMIT_ENABLED cannot be disabled in production")
         if self.ratelimit_storage_uri.startswith("memory://"):
             log.warning("Rate limits use in-memory storage: only correct for a single worker process")
+
+
+def _validate_managed_demo(env: Mapping[str, str], name: str) -> None:
+    from .devtools.demo_guard import DemoSafetyError, assert_owned_demo
+
+    if name != "development":
+        raise ConfigError("EDUNAV_DEMO is only permitted in development")
+    for key in ("USERS_DATABASE_URL_FILE", "PLANS_DATABASE_URL_FILE",
+                "SECRET_KEY_FILE", "SECRET_KEY_FALLBACKS_FILE"):
+        if env.get(key):
+            raise ConfigError(f"{key} cannot redirect a managed demo")
+    try:
+        root = assert_owned_demo(BACKEND_DIR)
+    except DemoSafetyError as exc:
+        raise ConfigError(str(exc)) from None
+    for key, filename in (("USERS_DATABASE_URL", "users.sqlite3"), ("PLANS_DATABASE_URL", "plans.sqlite3")):
+        raw = env.get(key)
+        if not raw:
+            raise ConfigError(f"{key} must explicitly select the managed demo database")
+        try:
+            url = make_url(raw)
+            target = sqlite_file_path(raw)
+        except (ArgumentError, ConfigError):
+            raise ConfigError(f"{key} is not a valid managed demo database URL") from None
+        if url.drivername != "sqlite" or url.query or target is None or target.resolve() != (root / filename).resolve():
+            raise ConfigError(f"{key} must select its repository-local managed demo database")

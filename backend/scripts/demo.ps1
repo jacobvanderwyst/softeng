@@ -23,6 +23,8 @@
 .PARAMETER ClearSavedData
   Delete ALL students' saved plans, semesters, planned courses and course progress on startup.
   Keep accounts and the catalog. Use -KeepDemoPasswords too if existing passwords should stay unchanged.
+.PARAMETER AdoptExistingDemo
+  Explicitly mark a validated legacy backend\instance database pair as local demo data once.
 .PARAMETER KeepDemoPasswords
   Keep existing passwords on subsequent launches. Fresh/reset databases still receive generated passwords.
 .PARAMETER NoRun
@@ -39,10 +41,11 @@
 #>
 [CmdletBinding()]
 param(
-    [int]$Port = 5000,
+    [ValidateRange(1024, 65535)][int]$Port = 5000,
     [string]$FrontendOrigin,
     [switch]$Reset,
     [switch]$ClearSavedData,
+    [switch]$AdoptExistingDemo,
     [switch]$KeepDemoPasswords,
     [switch]$NoRun,
     [Alias('h')]
@@ -62,6 +65,7 @@ OPTIONS
   -Port <number>             HTTP port (default: 5000).
   -KeepDemoPasswords         Keep existing passwords instead of refreshing alice/teacher1.
   -NoRun                     Set up databases/passwords without starting the server.
+  -AdoptExistingDemo          Once only: adopt an existing, reviewed backend\instance demo pair.
   -FrontendOrigin <origin>   Allow a separate frontend origin, e.g. http://localhost:5173.
   -ClearSavedData            DELETE ALL students' saved plans, semesters, planned courses
                              and course progress. Keep accounts and catalog.
@@ -71,7 +75,7 @@ OPTIONS
 QUICK START
   1. Run .\backend\scripts\demo.ps1
   2. Copy the displayed passwords for alice (student) and teacher1 (teacher).
-  3. Open http://localhost:5000/ (use your chosen port if different).
+  3. Open the printed HTTP Frontend URL (IPv4 loopback; default port 5000).
   4. Sign in as alice, create a plan, add semesters/courses, and update My Degree.
   5. Reload to check persistence. Sign out and use teacher1 for read-only student views.
      In the untouched sample database, Alice's student ID is 1.
@@ -90,6 +94,9 @@ PASSWORDS AND DATA
   -NoRun still performs password setup; add -KeepDemoPasswords to preserve existing passwords.
   -KeepDemoPasswords does not prevent account/password generation on fresh/reset databases.
   This launcher is for local development only, not production or external databases.
+  Targets are fixed at backend\instance. Database environment overrides are rejected,
+  backend\.env is ignored, and linked/reparse targets cannot be adopted or wiped.
+  Existing unmarked demo databases require -AdoptExistingDemo once, after reviewing them.
 
 EXAMPLES
   .\backend\scripts\demo.ps1
@@ -98,6 +105,7 @@ EXAMPLES
   .\backend\scripts\demo.ps1 -NoRun -KeepDemoPasswords
   .\backend\scripts\demo.ps1 -ClearSavedData
   .\backend\scripts\demo.ps1 -ClearSavedData -KeepDemoPasswords
+  .\backend\scripts\demo.ps1 -AdoptExistingDemo -KeepDemoPasswords
   .\backend\scripts\demo.ps1 -FrontendOrigin http://localhost:5173
 
 TROUBLESHOOTING
@@ -122,11 +130,27 @@ $ErrorActionPreference = 'Stop'
 $backend = Split-Path -Parent $PSScriptRoot
 $venvPython = Join-Path $backend '.venv\Scripts\python.exe'
 $instance = Join-Path $backend 'instance'
+$demoHost = [Net.IPAddress]::Loopback.ToString()
 
 function Write-Step([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
 
+function Assert-PlainDemoPath([string]$Path) {
+    $itemPath = [IO.Path]::GetFullPath($Path)
+    while ($itemPath) {
+        if (Test-Path -LiteralPath $itemPath) {
+            $item = Get-Item -Force -LiteralPath $itemPath
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                throw 'Demo paths must not contain symlinks, junctions or reparse points.'
+            }
+        }
+        $parent = Split-Path -Parent $itemPath
+        if ($parent -eq $itemPath) { break }
+        $itemPath = $parent
+    }
+}
+
 # Refuse to run against anything that is not a plain local development setup.
-foreach ($name in 'USERS_DATABASE_URL', 'PLANS_DATABASE_URL') {
+foreach ($name in 'USERS_DATABASE_URL', 'PLANS_DATABASE_URL', 'USERS_DATABASE_URL_FILE', 'PLANS_DATABASE_URL_FILE') {
     if (Test-Path "Env:$name") { throw "$name is set in this shell. Unset it first: this script manages its own local databases." }
 }
 if ($env:APP_ENV -and $env:APP_ENV -ne 'development') {
@@ -136,9 +160,31 @@ if ($FrontendOrigin -and $FrontendOrigin -notmatch '^https?://[A-Za-z0-9.-]+(:\d
     throw "-FrontendOrigin must be an exact origin such as http://localhost:5173 (no path, no wildcard)."
 }
 
-$saved = @{ APP_ENV = $env:APP_ENV; CORS_ORIGINS = $env:CORS_ORIGINS }
+Assert-PlainDemoPath $backend
+Assert-PlainDemoPath $instance
+$managedNames = @(
+    'APP_ENV', 'EDUNAV_DEMO', 'CORS_ORIGINS', 'USERS_DATABASE_URL', 'PLANS_DATABASE_URL',
+    'USERS_DATABASE_URL_FILE', 'PLANS_DATABASE_URL_FILE', 'SECRET_KEY', 'SECRET_KEY_FILE',
+    'SECRET_KEY_FALLBACKS', 'SECRET_KEY_FALLBACKS_FILE', 'COOKIE_SECURE', 'PROXY_HOPS', 'LOG_DIR',
+    'FLASK_SKIP_DOTENV', 'FLASK_RUN_HOST', 'FLASK_RUN_PORT', 'FLASK_RUN_CERT', 'FLASK_RUN_KEY',
+    'FLASK_DEBUG', 'PYTHONPATH', 'PYTHONHOME'
+)
+$saved = @{}
+foreach ($name in $managedNames) {
+    $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+    Remove-Item "Env:$name" -ErrorAction SilentlyContinue
+}
 Push-Location $backend
 try {
+    $env:APP_ENV = 'development'
+    $env:EDUNAV_DEMO = '1'
+    $env:FLASK_SKIP_DOTENV = '1'
+    $env:PYTHONPATH = Join-Path $backend 'src'
+    $env:COOKIE_SECURE = 'false'
+    $env:PROXY_HOPS = '0'
+    $env:USERS_DATABASE_URL = 'sqlite:///' + (Join-Path $instance 'users.sqlite3').Replace('\', '/')
+    $env:PLANS_DATABASE_URL = 'sqlite:///' + (Join-Path $instance 'plans.sqlite3').Replace('\', '/')
+    if ($FrontendOrigin) { $env:CORS_ORIGINS = $FrontendOrigin }
     # ---- Python environment
     if (-not (Test-Path $venvPython)) {
         Write-Step 'Creating virtual environment (.venv)'
@@ -159,19 +205,28 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Installing the application failed.' }
     }
 
-    $env:APP_ENV = 'development'
-    if ($FrontendOrigin) { $env:CORS_ORIGINS = $FrontendOrigin }
+    $guardArgs = @('-m', 'degreeplan.devtools.demo_guard')
+    if ($AdoptExistingDemo) { $guardArgs += '--adopt-existing' }
+    & $venvPython @guardArgs
+    if ($LASTEXITCODE -ne 0) { throw 'Demo ownership validation failed; no database wipe or password change was performed.' }
 
     # ---- Databases
     if ($Reset) {
+        & $venvPython -m degreeplan.devtools.demo_guard --check
+        if ($LASTEXITCODE -ne 0) { throw 'Refusing to wipe databases without verified demo ownership.' }
         Write-Step 'Resetting the demo databases'
         foreach ($db in 'users', 'plans') {
             foreach ($suffix in '.sqlite3', '.sqlite3-wal', '.sqlite3-shm') {
-                Remove-Item -ErrorAction SilentlyContinue -Force (Join-Path $instance "$db$suffix")
+                $target = Join-Path $instance "$db$suffix"
+                Assert-PlainDemoPath $target
+                if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force }
             }
         }
     }
-    $fresh = -not (Test-Path (Join-Path $instance 'users.sqlite3'))
+    $usersExist = Test-Path -LiteralPath (Join-Path $instance 'users.sqlite3')
+    $plansExist = Test-Path -LiteralPath (Join-Path $instance 'plans.sqlite3')
+    if ($usersExist -ne $plansExist) { throw 'Incomplete demo database pair. Back it up before an explicit -Reset.' }
+    $fresh = -not $usersExist
 
     Write-Step 'Applying database migrations'
     & $venvPython -m flask --app degreeplan.wsgi db upgrade
@@ -198,21 +253,24 @@ try {
     }
 
     if ($ClearSavedData -and -not $Reset) {
+        & $venvPython -m degreeplan.devtools.demo_guard --check
+        if ($LASTEXITCODE -ne 0) { throw 'Refusing to clear data without verified demo ownership.' }
         Write-Step 'Clearing ALL saved plans, semesters, planned courses and course progress'
         & $venvPython -m flask --app degreeplan.wsgi dev clear-saved-data --yes
         if ($LASTEXITCODE -ne 0) { throw 'Could not clear saved demo information.' }
     }
 
     Write-Host ''
-    Write-Host "API:        http://localhost:$Port/api/v1/health/ready"
-    Write-Host "Frontend:   http://localhost:$Port/"
+    Write-Host "API:        http://${demoHost}:$Port/api/v1/health/ready"
+    Write-Host "Frontend:   http://${demoHost}:$Port/"
     if ($FrontendOrigin) { Write-Host "CORS:       allowed for $FrontendOrigin" }
     Write-Host 'Guide:      docs\DEVELOPMENT.md'
     Write-Host ''
 
     if (-not $NoRun) {
         Write-Step "Starting the API on port $Port (Ctrl+C to stop)"
-        & $venvPython -m flask --app degreeplan.wsgi run --port $Port
+        & $venvPython -m flask --app degreeplan.wsgi run --host $demoHost --port $Port --no-debugger --no-reload
+        if ($LASTEXITCODE -ne 0) { throw 'The demo server stopped with an error. Check the port and preceding message.' }
     }
 } finally {
     Pop-Location

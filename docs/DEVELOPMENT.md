@@ -21,6 +21,7 @@ The script creates `backend\.venv` and installs the hash-pinned dependencies (fi
 | `-Help` / `-h` | show usage, demo steps and troubleshooting; no setup or password/data changes |
 | `-Reset` | delete the local databases, reseed, new passwords |
 | `-ClearSavedData` | delete all students' saved plans, semesters, planned courses and progress; retain accounts/catalog |
+| `-AdoptExistingDemo` | explicitly adopt an integrity-checked legacy repository-local demo pair once |
 | `-KeepDemoPasswords` | preserve existing passwords instead of generating new ones for `alice` and `teacher1` |
 | `-FrontendOrigin http://localhost:5173` | allow that exact origin through CORS (the frontend dev server) |
 | `-Port 8080` | different port |
@@ -47,7 +48,12 @@ demo server first and back up anything you want to keep. Clearing is transaction
 Development mode differs from production in three ways: the session key is random on every start (so a restart logs
 everyone out), cookies are named `sid` and are not `Secure` (so plain `http://localhost` works), and the databases
 default to `backend\instance\users.sqlite3` and `plans.sqlite3`. Optional settings can go in `backend\.env`
-(git-ignored, template in `backend\.env.example`); it is read **only** when `APP_ENV=development`.
+(git-ignored, template in `backend\.env.example`); it is read **only** for manual development when `APP_ENV=development`.
+The managed `demo.ps1` instead sets `EDUNAV_DEMO=1`, skips dotenv, pins database paths, rejects file/direct URL
+redirects, and checks `.edunav-demo.json` ownership before mutation. Existing unmarked databases require
+`-AdoptExistingDemo` once. Linked/junction/hard-linked data targets are refused.
+See [WINDOWS11_DEMO.md](WINDOWS11_DEMO.md) for the current demo guide and
+[WINDOWS11_QUICKSTART.md](WINDOWS11_QUICKSTART.md) for the separate production installation.
 
 **Without the script:**
 
@@ -71,6 +77,11 @@ flask --app degreeplan.wsgi run                   # add --debug for auto-reload
 | `db` | `upgrade`, `status`, `stamp --target users\|plans`, `backup --dest <folder>` |
 | `users` | `create`, `list`, `set-password`, `deactivate`, `activate`, `revoke-sessions` |
 | `dev` | `seed`, `refresh-demo-passwords`, `clear-saved-data --yes` (development only; absent in production) |
+| `catalog` | `import FILE [--dry-run] [--update]` (validated additive version-1 JSON import) |
+
+Production also supports `db verify`, `db validate-schema --target users|plans --revision current`, profile
+assignment via `users update-profile`, and `users revoke-all-sessions --yes`; use the installed operator wrapper
+for production, not shell-exported development database URLs. See [OPERATIONS.md](OPERATIONS.md).
 
 ## 2. Tests and quality gates
 
@@ -91,7 +102,7 @@ Refresh the hash-pinned lock files after changing `pyproject.toml` (review the d
 
 ```powershell
 pip-compile --generate-hashes --strip-extras -o requirements\prod.txt pyproject.toml
-pip-compile --generate-hashes --strip-extras --extra dev -o requirements\dev.txt pyproject.toml
+pip-compile --generate-hashes --strip-extras --allow-unsafe --extra dev -o requirements\dev.txt pyproject.toml
 ```
 
 ## 3. Connect the frontend
@@ -107,6 +118,9 @@ student-reported Completed/In Progress/Not Started statuses; Dashboard and Cours
 These statuses are not official transcript records, are shared across alternate plans, and do not override the
 planner's prerequisite-order validation. Reset Progress affects all statuses for that student; Reset Planner
 affects only the selected plan. Multi-request resets reload the server state on failure and may need retrying.
+Letter grades A/B/C/D/F are now stored with progress. Status-only changes preserve a saved grade; explicit null clears
+it. Only Completed, validly graded, positive-credit records contribute to server-calculated planning GPA across plans.
+An F contributes zero quality points, not earned-credit approval. Existing status-only records migrate with null grades.
 Teachers/admins enter a student ID to view authorized records read-only; the server enforces access.
 Semester indices remain stable (1–16), including after deletion; new dated semesters append in chronological order.
 Rename/reuse a term or create another plan when the highest remaining term index is 16.
@@ -202,10 +216,10 @@ sam,student,Sam,Student,,1,tina
 .\scripts\bulk_create_users.ps1 -Csv .\people.csv -OutFile $env:USERPROFILE\new-accounts.csv
 ```
 
-Every account gets a random one-time password. The output file contains them, is readable only by the current user, and is never
+Every account gets a random initial password. The output file contains them, is readable only by the current user, and is never
 overwritten: distribute the passwords securely, then delete it. There is no "force change at first login" yet; users can
-change theirs with `POST /api/v1/auth/change-password`. On a server, add `-Cli "C:\Program Files\DegreePlan\bin\degreeplan.ps1"`
-so the script uses the production environment.
+use the Change Password form or `POST /api/v1/auth/change-password`. For production use the manifest-backed
+`operator.ps1` documented in [OPERATIONS.md](OPERATIONS.md); consult the bulk helper's updated `-Help` before automation.
 
 Existing password hashes: werkzeug-style scrypt hashes (`scrypt:32768:8:1$salt$hash`) can be copied into
 `users.password_hash` and are upgraded to Argon2id at first login. Any other format (bcrypt, MD5, plain text) cannot

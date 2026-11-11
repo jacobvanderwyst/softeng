@@ -1,127 +1,64 @@
-# Operations
-
-Paths assume the default install: `C:\ProgramData\DegreePlan` (data) and `C:\Program Files\DegreePlan` (program).
-The operator command is `& "C:\Program Files\DegreePlan\bin\degreeplan.ps1" <group> <command>` (elevated PowerShell).
-
-## Monitoring and logs
-
-- `GET /api/v1/health/live`: process is up. `GET /api/v1/health/ready`: databases reachable **and** migrated. Point the
-  monitor at `ready` and alert on anything other than `200`.
-- Also alert on: a service not running, low disk space on the data volume, a failed backup task, bursts of `401`/`429`
-  in `app.log`, and any `ERROR` line.
-- Logs in `C:\ProgramData\DegreePlan\logs` (rotated at 10 MB x 10):
-
-  | File | Contents |
-  | --- | --- |
-  | `app.log` | application and request lines (JSON when `LOG_FORMAT=json`) |
-  | `audit.log` | security events; **ship it to a separate log server** so it cannot be altered from this host |
-  | `DegreePlanApi.out.log`, `.err.log` | service wrapper output, including startup and configuration errors |
-  | `caddy-access.log` | proxy access log (client IP, path, status; credentials redacted) |
-
-## User administration
-
+# Production operations
+Use the installed management scripts in an elevated Windows PowerShell session. Defaults below refer to `C:\Program Files\EduNav\bin` and `C:\ProgramData\EduNav\production`. Never use demo reset/wipe commands for production.
+## Status and monitoring
 ```powershell
-$cli = "C:\Program Files\DegreePlan\bin\degreeplan.ps1"
-& $cli users list
-& $cli users create <name> --role student --first-name <F> --last-name <L> --program-id 1 --advisor <teacher>
-& $cli users set-password <name>        # also revokes all of the user's sessions
-& $cli users deactivate <name>          # disables the account and revokes its sessions immediately
-& $cli users activate <name>
-& $cli users revoke-sessions <name>     # force re-login everywhere
+$bin = 'C:\Program Files\EduNav\bin'
+& "$bin\manage.ps1" -Action Status
+& "$bin\operator.ps1" -CliArgs @('db','verify')
+& "$bin\harden.ps1"
 ```
-
-Users change their own password through `POST /api/v1/auth/change-password`, which revokes their other sessions. A
-forgotten password is handled by an administrator with `set-password` after verifying the person out of band. A locked
-account (too many failed logins) unlocks by itself after the lock period.
-
-## Backups
-
-`deploy\windows\backup.ps1` takes a consistent online backup of both SQLite databases (safe while the service runs),
-verifies each copy with `PRAGMA integrity_check`, stores it in `C:\ProgramData\DegreePlan\backups\<UTC timestamp>`
-(Administrators/SYSTEM only) and prunes backups older than the retention period (default 30 days) only after a
-successful run. Schedule it nightly:
-
+Check both services, trusted HTTPS and `/api/v1/health/ready`. Readiness checks database connectivity/migration status; `db verify` additionally checks exact schema, SQLite integrity/FKs and student/program references. None of these alone validates host TLS trust, firewall scope or full academic rules.
+Configure external alerts for service/readiness failures, disk space, failed scheduled backups, stale backup sets, ERROR logs and unusual login/lockout activity. Alerts are an operator responsibility; a documented check is not a running monitor.
+API logs and audit logs are under production `logs\api`; service wrapper logs are split into API/proxy directories. Passwords, cookies and secret values must not be logged. Ship audit logs off-host; local privileged administrators can otherwise alter them.
+## Account management
 ```powershell
-$action  = New-ScheduledTaskAction -Execute 'powershell.exe' `
-           -Argument '-NoProfile -ExecutionPolicy Bypass -File "C:\src\degreeplan\deploy\windows\backup.ps1"'
-$trigger = New-ScheduledTaskTrigger -Daily -At 2:00am
-Register-ScheduledTask -TaskName 'DegreePlan backup' -Action $action -Trigger $trigger -User 'SYSTEM' -RunLevel Highest
+& "$bin\operator.ps1" -CliArgs @('users','list','--details')
+& "$bin\operator.ps1" -CliArgs @('catalog','list')
+& "$bin\operator.ps1" -CliArgs @('users','create','site-admin','--role','admin')
+& "$bin\operator.ps1" -CliArgs @('users','set-password','student1')
+& "$bin\operator.ps1" -CliArgs @('users','update-profile','student1','--program-id','1','--advisor','advisor1')
+& "$bin\operator.ps1" -CliArgs @('users','deactivate','student1')
+& "$bin\operator.ps1" -CliArgs @('users','activate','student1')
+& "$bin\operator.ps1" -CliArgs @('users','revoke-sessions','student1')
 ```
-
-Backups contain student records and password hashes: copy them to encrypted, access-controlled offsite storage, and
-test a restore at least once per term.
-
-### Restore
-
-1. `Stop-Service DegreePlanProxy, DegreePlanApi`.
-2. Keep the damaged files for investigation: rename `data\users.sqlite3` and `data\plans.sqlite3` (and any `-wal` or
-   `-shm` siblings).
-3. Copy the chosen backup files to `data\users.sqlite3` and `data\plans.sqlite3`.
-4. Re-apply permissions by re-running `install.ps1` (it restores the service ACLs), or grant
-   `NT SERVICE\DegreePlanApi:(OI)(CI)M` on the `data` folder.
-5. `degreeplan.ps1 db status` must show both databases `ok`; then `Start-Service DegreePlanApi, DegreePlanProxy`.
-6. An old users database brings back old password hashes and session rows: run `users revoke-sessions` for affected
-   accounts and notify users whose credentials changed after the backup.
-
-## Audit trail
-
+Passwords are prompted secretly. Program/advisor IDs and permissions must match real institutional records. `users list --details` exposes operator-only profile IDs needed for staff lookups, never password hashes. `catalog list` shows program IDs/codes/names. Profile commands support explicit clear flags for program/advisor/department; use command help for the exact role-specific options.
+Users can change their password in the signed-in Change Password form. Forgotten passwords require verified administrator assistance; MFA/SSO and e-mail recovery are not supplied. A password reset revokes sessions. Production startup never refreshes/prints known demonstration passwords.
+The release's `backend/scripts/bulk_create_users.ps1` helper is optional; inspect `-Help` and pass the installed operator
+wrapper through `-Cli`. Dry run checks input structure, not live program/advisor references, and creation is per-row,
+not an atomic batch. Generated credential files are sensitive and must be access-restricted, distributed privately and
+removed under the institution's retention policy. No forced first-login change is promised.
+## Controlled catalog imports
+Use version-1 JSON with required `version`, `programs`, `courses`, `prerequisites`, `requirements` fields. References use codes; `docs/examples/catalog-v1.example.json` is synthetic, not an official catalog.
 ```powershell
-& "C:\Program Files\DegreePlan\venv\Scripts\python.exe" -c "
-import sqlite3, datetime
-db = sqlite3.connect('file:C:/ProgramData/DegreePlan/data/users.sqlite3?mode=ro', uri=True)
-for row in db.execute('SELECT occurred_at, action, outcome, actor_user_id, target_type, target_id, ip, request_id FROM audit_log ORDER BY id DESC LIMIT 50'):
-    print(datetime.datetime.fromtimestamp(row[0], datetime.UTC).isoformat(), *row[1:])
-"
+& "$bin\operator.ps1" -CliArgs @('catalog','import','C:\reviewed\catalog.json','--dry-run')
+& "$bin\operator.ps1" -CliArgs @('catalog','import','C:\reviewed\catalog.json')
+& "$bin\operator.ps1" -CliArgs @('catalog','list')
 ```
-
-Actions: `auth.login` (outcomes `success`, `failure`, `locked`), `auth.logout`, `auth.change_password`, `user.create`,
-`user.set_password`, `user.deactivate`, `user.activate`, `user.revoke_sessions`, `plan.create`, `plan.update`,
-`plan.delete`, `plan.course.set`, `plan.course.remove`.
-
-## Certificates
-
-- Public host name: Caddy obtains and renews certificates automatically. After DNS or firewall changes check the
-  `DegreePlanProxy` logs.
-- Institutional certificate: in `C:\Program Files\DegreePlan\caddy\Caddyfile` replace the `tls { ... }` block with
-  `tls <cert.pem> <key.pem>` (keep the key under `secrets` with restrictive ACLs) and `Restart-Service DegreePlanProxy`.
-  `install.ps1` re-renders the Caddyfile from `deploy\caddy\Caddyfile.template`, so make the same change there.
-
-## Incident response
-
-**Suspected stolen session or compromised account**
-1. `users deactivate <name>` (ends sessions at once) or `users revoke-sessions <name>`.
-2. Review `audit_log` / `audit.log` for that user and the IPs involved; check `plan.*` events for tampering.
-3. After verifying the person, `users set-password <name>`, then `users activate <name>`.
-
-**Suspected leak of the session key or of a database backup**
-1. Rotate the key without keeping a fallback so every session becomes invalid
-   ([DEPLOYMENT.md](DEPLOYMENT.md#session-key-rotation)).
-2. Passwords are Argon2id hashes, but treat a leaked users database as a credential exposure: reset privileged accounts
-   first, then everyone, and notify according to the organization's policy.
-
-**Brute force or scraping**
-1. Look for bursts of `auth.login` `failure`/`locked` events and `429` responses; block offending addresses in the
-   Windows Firewall or upstream.
-2. Tighten `LOGIN_RATE_LIMIT` / `LOCKOUT_*` if needed: add the variable to the `$appEnv` table in `install.ps1` and
-   re-run it.
-
-## Troubleshooting
-
-| Symptom | Cause and fix |
-| --- | --- |
-| **Server:** service stops immediately | read `logs\DegreePlanApi.err.log`; configuration errors are explicit and contain no secrets (for example `SECRET_KEY must be a random value of at least 32 characters`, `database files must live outside the source tree`) |
-| **Server:** `/health/ready` returns `503` | a database is unreachable or not at the expected migration revision; the reason is in `app.log`; run `degreeplan.ps1 db status` |
-| **Server:** everyone is logged out after a restart | the key changed or `SECRET_KEY_FILE` points at a different file |
-| **Server:** logs show the proxy's address instead of client IPs | `PROXY_HOPS` is not `1` behind Caddy |
-| `403 Origin not allowed` | the page's origin is neither the API's own origin nor in `CORS_ORIGINS`; behind a proxy also check `PROXY_HOPS` |
-| Every write returns `403` "CSRF" | send `X-CSRF-Token`; after a page refresh call `GET /auth/me` first to get a fresh token |
-| Browser blocks the request (CORS error) | local: start with `-FrontendOrigin <exact origin>`; server: set `CORS_ORIGINS`; check scheme and port |
-| Login works with a tool but not in the browser | send cookies (`credentials: "include"`) and fix CORS as above |
-| `429` on login | per-IP rate limit or the username's lockout; wait out `Retry-After` (lockout default 5 minutes, doubling per extra failure up to 1 hour); locally `-Reset` clears it |
-| Logged out after restarting the local server | expected in development (random session key per start) |
-| `APP_ENV must be set` | export `APP_ENV` (`development` locally, `production` on servers); `demo.ps1` sets it automatically |
-| `Python 3.11+ was not found` | install Python from python.org with "Add to PATH" and open a new terminal |
-| PowerShell refuses to run a script from a zip | `Unblock-File .\scripts\demo.ps1` or `powershell -ExecutionPolicy Bypass -File .\scripts\demo.ps1` |
-| `dev seed` fails with a constraint error | the database is already seeded: `.\scripts\demo.ps1 -Reset` |
-| Import reports "not migrated" | run `flask --app degreeplan.wsgi db upgrade` first (with `APP_ENV` set) |
-| Asking for help | quote the `request_id` from the error body; it finds the exact server log lines |
+Dry run validates then rolls back. Different existing scalar values require `--update`; relations are additive and existing records are not deleted. Duplicate keys/codes/edges, dangling references, prerequisite cycles and oversized/invalid inputs are rejected. Reconcile imported counts/codes with the official source and run `db verify`. Existing grade summaries can change if catalog credits are explicitly updated; review such changes before import.
+This release does not automatically migrate arbitrary third-party schemas or copy demo data. Known-schema adoption requires explicit read-only schema validation and reviewed migration handling, not stamping an unknown schema to head.
+## Backup and restore
+```powershell
+& "$bin\manage.ps1" -Action Backup
+# Substitute an actual verified owned backup-set directory:
+& "$bin\manage.ps1" -Action Restore -BackupSet 'C:\ProgramData\EduNav\production\backups\set-<id>' -WhatIf
+& "$bin\manage.ps1" -Action Restore -BackupSet 'C:\ProgramData\EduNav\production\backups\set-<id>'
+```
+Backup briefly stops both services and serializes supported management writes. It validates known schemas and produces paired SQLite snapshots plus hashes/metadata. Do not run independent database writers during maintenance. Each standalone CLI `db backup` snapshot is individually consistent, but two sequential live snapshots are not automatically one cross-database transaction.
+Restore accepts only an owned paired set, verifies hashes before replacing live data, validates/migrates isolated scratch copies, preserves a pre-restore recovery pair and revokes restored sessions. Normal maintenance restores the prior running state unless `-LeaveStopped`; a failed restore/migration leaves services stopped and retains recovery/failed artifacts. Never mix restored databases with unrelated live WAL/SHM files.
+Backups contain education records and password hashes. Protect and encrypt local storage, keep verified offsite copies, define retention, and test a restore on staging. Scheduling, retention deletion and offsite transfer are not automatic install side effects.
+To opt into a reviewed daily SYSTEM backup task:
+```powershell
+& "$bin\schedule-backup.ps1" -Time '02:00' -WhatIf
+& "$bin\schedule-backup.ps1" -Time '02:00'
+```
+The task runs quiesced backup and causes brief planned downtime. Verify its LastTaskResult and backup contents; configure failure alerts. Replacement of an existing owned task requires `-Replace`. No automatic pruning occurs.
+## Upgrades and service lifecycle
+Stop/Start through `manage.ps1`. Supply a newly verified wheel to the installer using the same owned roots, hostname, ports and access/certificate modes. Upgrades back up current known schemas and code before replacing packages, then migrate and verify. Preserve snapshots and the matching previous release artifact for recovery; don't downgrade production migrations ad hoc.
+`manage.ps1 -Action Migrate` also creates a pre-migration backup. Failure leaves services stopped; inspect logs and retained recovery artifacts before retrying. An upgrade rollback may require the matched old wheel plus paired pre-upgrade databases; revoking sessions is necessary after restoring old account data.
+Uninstall stops/removes verified application services/firewall rules and scheduled backup task but retains files. It does not wipe production data or silently delete recovery material.
+## Hardening and certificates
+`harden.ps1` is read-only by default. Preview app-specific repairs with `-Apply -WhatIf`. Host antivirus/updates, BitLocker/recovery keys, privileged access, RDP/WinRM policy, baseline enforcement and compliance review remain separate administrator duties.
+Never suppress certificate errors. Internal-CA trust requires explicit reviewed fingerprint/issuer verification on each client. Protect root/private keys and persistent Caddy state; do not copy root private keys to clients. For institutional certificate renewal, validate the new certificate/key pair and permissions before a controlled proxy restart. External ACME requires working DNS/challenge connectivity.
+## Incident response and limits
+For suspected compromised accounts, deactivate/revoke sessions first, review security events, verify identity out of band, reset credentials and reactivate only after review. Coordinate application secret rotation with the service configuration and all management commands; do not print keys. An exposed user database/backup is a credential exposure even though passwords are hashed.
+The databases are independently committed; an audit-write failure may follow an already committed plan/progress change. Retry carefully after reloading state. No distributed audit atomicity or HA is claimed. Planning GPA/progress are self-reported, not official transcript evidence or a complete graduation audit.

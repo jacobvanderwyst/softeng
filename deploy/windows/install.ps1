@@ -1,279 +1,249 @@
 #Requires -Version 5.1
-#Requires -RunAsAdministrator
-<#
-.SYNOPSIS
-  Installs (or upgrades) the degree plan backend as a Windows service, optionally with Caddy for TLS.
-
-.DESCRIPTION
-  * Creates the install tree (code + venv) and the data tree (secrets, data, logs, backups, www).
-  * Installs ONLY hash-pinned dependencies (pip --require-hashes).
-  * Generates the session signing key with a CSPRNG if it does not exist yet. It never leaves the
-    secrets folder and is never printed.
-  * Locks down ACLs: secrets are readable only by Administrators/SYSTEM and the service account.
-  * Registers the services with WinSW, running as non-admin virtual accounts (NT SERVICE\<name>).
-  * Applies database migrations (or stamps existing databases) and starts the services.
-
-  Safe to re-run: existing secrets and data are preserved; code, dependencies and service
-  definitions are refreshed.
-
-.EXAMPLE
-  .\install.ps1 -WinSWPath C:\tools\WinSW-x64.exe -WinSWSha256 <sha256> `
-      -CaddyPath C:\tools\caddy.exe -Hostname plans.example.edu
-
-.EXAMPLE
-  # Adopt existing databases (schema already matches the baseline) instead of creating new ones:
-  .\install.ps1 -WinSWPath ... -WinSWSha256 ... -UsersDatabasePath D:\db\users.sqlite3 `
-      -PlansDatabasePath D:\db\plans.sqlite3 -AdoptExistingDatabases
-#>
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess)]
 param(
-    [Parameter(Mandatory)][string]$WinSWPath,
-    [Parameter(Mandatory)][string]$WinSWSha256,
-    [string]$InstallRoot = (Join-Path $env:ProgramFiles 'DegreePlan'),
-    [string]$DataRoot = (Join-Path $env:ProgramData 'DegreePlan'),
-    [string]$PythonExe = 'python',
+    [switch]$Help, [switch]$Preflight, [switch]$RenderOnly,
+    [string]$InstallRoot = 'C:\Program Files\EduNav',
+    [string]$DataRoot = 'C:\ProgramData\EduNav\production',
     [string]$BackendDir = (Join-Path $PSScriptRoot '..\..\backend'),
-    [string]$UsersDatabasePath,
-    [string]$PlansDatabasePath,
-    [switch]$AdoptExistingDatabases,
-    [string]$CaddyPath,
-    [string]$CaddySha256,
-    [string]$Hostname,
-    [switch]$SkipFirewall
+    [string]$PythonExe = 'python',
+    [string]$WinSWPath, [string]$WinSWSha256,
+    [string]$CaddyPath, [string]$CaddySha256,
+    [string]$WheelPath, [string]$WheelSha256,
+    [ValidateSet('Local', 'LAN', 'Public')][string]$AccessMode = 'Local',
+    [ValidateSet('Internal', 'Files', 'ACME')][string]$CertificateMode = 'Internal',
+    [string]$Hostname = 'localhost', [ValidateRange(1, 65535)][int]$HttpsPort = 8443,
+    [string[]]$RemoteAddress = @(), [string]$CertificatePath, [string]$PrivateKeyPath
 )
-
-$ErrorActionPreference = 'Stop'
-Set-StrictMode -Version 2
-
-$ApiService = 'DegreePlanApi'
-$ProxyService = 'DegreePlanProxy'
-$BackendDir = (Resolve-Path $BackendDir).Path
-$Templates = $PSScriptRoot
-if (-not $UsersDatabasePath) { $UsersDatabasePath = Join-Path $DataRoot 'data\users.sqlite3' }
-if (-not $PlansDatabasePath) { $PlansDatabasePath = Join-Path $DataRoot 'data\plans.sqlite3' }
-
-function Write-Step([string]$Message) { Write-Host "==> $Message" -ForegroundColor Cyan }
-
-function Assert-Sha256([string]$Path, [string]$Expected, [string]$What) {
-    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash
-    if ($actual -ne $Expected.Trim().ToUpperInvariant()) {
-        throw "$What failed the SHA-256 check (expected $Expected, got $actual). Refusing to continue."
+. (Join-Path $PSScriptRoot 'common.ps1')
+if ($Help) {
+    'install.ps1 [-Preflight|-RenderOnly|-WhatIf] -WinSWPath <exe> -WinSWSha256 <sha256> -CaddyPath <exe> -CaddySha256 <sha256> -WheelPath <whl> -WheelSha256 <sha256>'
+    'Defaults: Local, Internal CA, https://localhost:8443; no automatic trust. LAN/Public require -Hostname and -RemoteAddress.'
+    'Files requires -CertificatePath/-PrivateKeyPath. Public ACME requires -HttpsPort 443 and reachable DNS/challenge port 80.'
+    'Existing DegreePlan services are never adopted. Existing owned EduNav installation is backed up before upgrading.'
+    return
+}
+$InstallRoot = Get-SafePath $InstallRoot
+$DataRoot = Get-SafePath $DataRoot
+$BackendDir = Get-SafePath $BackendDir
+Assert-Roots $InstallRoot $DataRoot (Split-Path -Parent $BackendDir)
+if ($Hostname -notmatch '^(?=.{1,253}$)[A-Za-z0-9]+([.-][A-Za-z0-9]+)*$') { throw 'Invalid hostname.' }
+if ($AccessMode -eq 'Local' -and ($Hostname -ne 'localhost' -or $CertificateMode -eq 'ACME')) { throw 'Local requires localhost and Internal/Files TLS.' }
+if ($AccessMode -ne 'Local' -and ($Hostname -eq 'localhost' -or -not $RemoteAddress.Count)) { throw 'LAN/Public require hostname and explicit firewall RemoteAddress scope.' }
+foreach ($scope in $RemoteAddress) {
+    if ($scope -notmatch '^[A-Za-z0-9.:/-]+$' -or $scope -eq 'Any') { throw 'Use explicit IP/CIDR or LocalSubnet firewall scopes, not Any.' }
+}
+if ($CertificateMode -eq 'ACME' -and ($AccessMode -ne 'Public' -or $HttpsPort -ne 443)) { throw 'ACME requires Public on 443.' }
+if ($CertificateMode -eq 'Files') {
+    $CertificatePath = Get-SafePath $CertificatePath
+    $PrivateKeyPath = Get-SafePath $PrivateKeyPath
+    foreach ($file in @($CertificatePath, $PrivateKeyPath)) {
+        if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing TLS input: $file" }
     }
 }
-
-function Set-StrictAcl {
-    <# Replace inherited permissions: Administrators + SYSTEM full control, optional extra principals. #>
-    param([string]$Path, [string[]]$Extra = @())
-    $grants = @('*S-1-5-18:(OI)(CI)F', '*S-1-5-32-544:(OI)(CI)F') + $Extra   # SYSTEM, Administrators
-    & icacls.exe $Path /inheritance:r | Out-Null
-    foreach ($grant in $grants) { & icacls.exe $Path /grant:r $grant /T /C | Out-Null }
-    if ($LASTEXITCODE -ne 0) { throw "icacls failed for $Path" }
+$m = [pscustomobject]@{
+    Version = 1; Product = 'EduNavProduction'; InstallRoot = $InstallRoot; DataRoot = $DataRoot
+    ApiService = 'EduNavApi'; ProxyService = 'EduNavProxy'
+    Python = Join-Path $InstallRoot 'venv\Scripts\python.exe'
+    Users = Join-Path $DataRoot 'data\users.sqlite3'; Plans = Join-Path $DataRoot 'data\plans.sqlite3'
+    Secret = Join-Path $DataRoot 'secrets\secret_key'
+    WinSWSha256 = $WinSWSha256; CaddySha256 = $CaddySha256
+    WheelSha256 = $WheelSha256; InstalledUtc = [DateTime]::UtcNow.ToString('o')
+    Hostname = $Hostname; HttpsPort = $HttpsPort; AccessMode = $AccessMode
+    CertificateMode = $CertificateMode; RemoteAddress = $RemoteAddress
 }
-
-function ConvertTo-FwdSlash([string]$Path) { return $Path.Replace('\', '/') }
-
-function Expand-Template([string]$Template, [hashtable]$Values) {
-    $text = Get-Content -Raw -LiteralPath $Template
-    foreach ($key in $Values.Keys) { $text = $text.Replace("@$key@", [string]$Values[$key]) }
-    if ($text -match '@[A-Z_]+@') { throw "Unreplaced placeholder in $Template : $($Matches[0])" }
-    return $text
+function Xml([string]$s) { [Security.SecurityElement]::Escape($s) }
+$bind = if ($AccessMode -eq 'Local') { 'bind localhost' } else { '' }
+$tls = switch ($CertificateMode) {
+    'Internal' { 'tls internal' }
+    'Files' { 'tls "' + (Join-Path $DataRoot 'secrets\tls.crt').Replace('\', '/') + '" "' + (Join-Path $DataRoot 'secrets\tls.key').Replace('\', '/') + '"' }
+    'ACME' { '' }
 }
-
-function Write-Utf8NoBom([string]$Path, [string]$Content) {
-    [IO.File]::WriteAllText($Path, $Content, (New-Object Text.UTF8Encoding($false)))
+$globalTls = if ($CertificateMode -eq 'ACME') { '' } else { 'auto_https disable_redirects' }
+$caddy = @"
+{
+    admin off
+    skip_install_trust
+    $globalTls
 }
-
-# --------------------------------------------------------------------------- preflight
-Write-Step 'Preflight checks'
-if (-not (Test-Path $WinSWPath)) { throw "WinSW not found: $WinSWPath" }
-Assert-Sha256 $WinSWPath $WinSWSha256 'WinSW executable'
-if ($CaddyPath) {
-    if (-not (Test-Path $CaddyPath)) { throw "Caddy not found: $CaddyPath" }
-    if (-not $CaddySha256) { throw '-CaddySha256 is required with -CaddyPath' }
-    if (-not $Hostname) { throw '-Hostname is required with -CaddyPath' }
-    Assert-Sha256 $CaddyPath $CaddySha256 'Caddy executable'
+https://${Hostname}:$HttpsPort {
+    $bind
+    $tls
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        -Server
+    }
+    request_body {
+        max_size 1MB
+    }
+    reverse_proxy localhost:8000
 }
-if ($Hostname -and $Hostname -notmatch '^[A-Za-z0-9.-]{1,253}$') { throw "Invalid -Hostname: $Hostname" }
-foreach ($dbPath in @($UsersDatabasePath, $PlansDatabasePath)) {
-    if (-not [IO.Path]::IsPathRooted($dbPath)) { throw "Database paths must be absolute: $dbPath" }
-    if ($dbPath.StartsWith($BackendDir, [StringComparison]::OrdinalIgnoreCase)) {
-        throw "Database files must live outside the source tree: $dbPath"
+"@
+$shell = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+$apiXml = @"
+<service>
+  <id>EduNavApi</id><name>EduNav API</name>
+  <executable>$(Xml $shell)</executable>
+  <arguments>-NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(Xml (Join-Path $InstallRoot 'bin\serve.ps1'))&quot;</arguments>
+  <workingdirectory>$(Xml $DataRoot)</workingdirectory>
+  <startmode>Automatic</startmode><stoptimeout>60 sec</stoptimeout>
+  <onfailure action="restart" delay="30 sec"/><resetfailure>1 hour</resetfailure>
+  <logpath>$(Xml (Join-Path $DataRoot 'logs\api'))</logpath>
+  <log mode="roll-by-size"><sizeThreshold>10240</sizeThreshold><keepFiles>8</keepFiles></log>
+</service>
+"@
+$proxyXml = @"
+<service>
+  <id>EduNavProxy</id><name>EduNav HTTPS proxy</name>
+  <executable>$(Xml (Join-Path $InstallRoot 'caddy\caddy.exe'))</executable>
+  <arguments>run --config &quot;$(Xml (Join-Path $InstallRoot 'caddy\Caddyfile'))&quot; --adapter caddyfile</arguments>
+  <workingdirectory>$(Xml (Join-Path $DataRoot 'caddy'))</workingdirectory>
+  <env name="XDG_DATA_HOME" value="$(Xml (Join-Path $DataRoot 'caddy'))"/>
+  <env name="XDG_CONFIG_HOME" value="$(Xml (Join-Path $DataRoot 'caddy'))"/>
+  <startmode>Automatic</startmode><stoptimeout>60 sec</stoptimeout>
+  <onfailure action="restart" delay="30 sec"/><resetfailure>1 hour</resetfailure>
+  <logpath>$(Xml (Join-Path $DataRoot 'logs\proxy'))</logpath>
+  <log mode="roll-by-size"><sizeThreshold>10240</sizeThreshold><keepFiles>8</keepFiles></log>
+</service>
+"@
+if ($RenderOnly) {
+    [pscustomobject]@{ Manifest = $m; Caddyfile = $caddy; ApiXml = $apiXml; ProxyXml = $proxyXml }
+    return
+}
+Assert-Hash $WinSWPath $WinSWSha256
+Assert-Hash $CaddyPath $CaddySha256
+Assert-Hash $WheelPath $WheelSha256
+if ([IO.Path]::GetExtension($WheelPath) -ne '.whl') { throw 'WheelPath must be a built .whl artifact.' }
+$os = Get-CimInstance Win32_OperatingSystem
+if (($os.ProductType -eq 1 -and [int]$os.BuildNumber -lt 22000) -or
+    ($os.ProductType -ne 1 -and [int]$os.BuildNumber -lt 17763)) { throw 'Require Windows 11 or Server 2019/2022/2025.' }
+foreach ($legacy in @('DegreePlanApi', 'DegreePlanProxy')) {
+    if (Get-Service $legacy -ErrorAction SilentlyContinue) { throw "Legacy service $legacy detected; no automatic adoption." }
+}
+$existing = Test-Path -LiteralPath (Join-Path $InstallRoot 'installation.json')
+if ($existing) {
+    $old = Read-Install $InstallRoot
+    foreach ($key in @('DataRoot', 'Hostname', 'HttpsPort', 'AccessMode', 'CertificateMode')) {
+        if ($old.$key -ne $m.$key) { throw "Upgrade cannot silently change $key." }
+    }
+} else {
+    foreach ($root in @($InstallRoot, $DataRoot)) {
+        if (Test-Path -LiteralPath $root) { throw "Unowned root already exists: $root" }
+        if (-not (Test-Path -LiteralPath (Split-Path -Parent $root))) {
+            # Default production parent is also application-owned and created privately.
+            if ($root -ne $DataRoot -or (Split-Path -Leaf (Split-Path -Parent $root)) -ne 'EduNav' -or
+                -not (Test-Path -LiteralPath (Split-Path -Parent (Split-Path -Parent $root)))) { throw "Parent missing: $root" }
+        }
+    }
+    foreach ($svc in @('EduNavApi', 'EduNavProxy')) {
+        if (Get-Service $svc -ErrorAction SilentlyContinue) { throw "Unowned service collision: $svc" }
     }
 }
-if ($AdoptExistingDatabases -and -not ((Test-Path $UsersDatabasePath) -and (Test-Path $PlansDatabasePath))) {
-    throw '-AdoptExistingDatabases requires both database files to exist.'
+foreach ($port in @($HttpsPort, 8000) + $(if ($CertificateMode -eq 'ACME') { @(80) } else { @() })) {
+    if (-not $existing -and (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)) { throw "Port occupied: $port" }
 }
-
-# --------------------------------------------------------------------------- directories
-Write-Step 'Creating directories'
-$dirs = @{
-    Service = Join-Path $InstallRoot 'service'
-    Venv    = Join-Path $InstallRoot 'venv'
-    Bin     = Join-Path $InstallRoot 'bin'
-    Secrets = Join-Path $DataRoot 'secrets'
-    Data    = Join-Path $DataRoot 'data'
-    Logs    = Join-Path $DataRoot 'logs'
-    Backups = Join-Path $DataRoot 'backups'
-    Www     = Join-Path $DataRoot 'www'
-    Caddy   = Join-Path $DataRoot 'caddy'
+if (-not (Test-Path (Join-Path $BackendDir 'requirements\prod.txt'))) { throw 'Missing hash-pinned dependency lock.' }
+if ($Preflight) { 'Preflight passed (no changes made).'; return }
+if (-not $PSCmdlet.ShouldProcess("$InstallRoot / $DataRoot", 'Install or upgrade production services and scoped firewall rules')) { return }
+Assert-Administrator
+$lock = Enter-Maintenance
+try {
+if ($existing) {
+    Stop-OwnedServices $old
+    & (Join-Path $PSScriptRoot 'manage.ps1') -InstallRoot $InstallRoot -Action Backup -LeaveStopped
+    if (-not $?) { throw 'Pre-upgrade backup failed; services remain stopped.' }
+    $recovery = Join-Path $DataRoot ('backups\code-' + [Guid]::NewGuid().ToString('N'))
+    New-PrivateDirectory $recovery
+    Copy-Item -LiteralPath $InstallRoot -Destination (Join-Path $recovery 'installation') -Recurse
+} else {
+    New-PrivateDirectory $InstallRoot
+    $parent = Split-Path -Parent $DataRoot
+    if (-not (Test-Path -LiteralPath $parent)) { New-PrivateDirectory $parent }
+    New-PrivateDirectory $DataRoot
+    foreach ($dir in @('data', 'secrets', 'logs', 'backups', 'caddy')) { New-PrivateDirectory (Join-Path $DataRoot $dir) }
+    foreach ($dir in @('bin', 'service', 'caddy')) { New-PrivateDirectory (Join-Path $InstallRoot $dir) }
+    foreach ($dir in @('api', 'proxy')) { New-PrivateDirectory (Join-Path $DataRoot "logs\$dir") }
 }
-foreach ($d in $dirs.Values) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
-foreach ($p in @($UsersDatabasePath, $PlansDatabasePath)) {
-    New-Item -ItemType Directory -Force -Path (Split-Path $p -Parent) | Out-Null
+# Every mutable/code location is private before package/config/secret writes.
+$release = Join-Path $InstallRoot 'release'
+if (-not (Test-Path -LiteralPath $release)) { New-PrivateDirectory $release }
+$releaseWheel = Join-Path $release ([IO.Path]::GetFileName($WheelPath))
+Copy-Item -LiteralPath $WheelPath -Destination $releaseWheel -Force
+Assert-Hash $releaseWheel $WheelSha256
+Copy-Item -LiteralPath (Join-Path $BackendDir 'requirements\prod.txt') -Destination (Join-Path $release 'requirements.txt') -Force
+Invoke-Checked $PythonExe @('-I', '-m', 'venv', (Join-Path $InstallRoot 'venv'))
+Invoke-Checked $m.Python @('-I', '-m', 'pip', '--isolated', 'install', '--only-binary=:all:', '--require-hashes', '-r', (Join-Path $release 'requirements.txt'))
+Invoke-Checked $m.Python @('-I', '-m', 'pip', '--isolated', 'install', '--no-deps', '--force-reinstall', $releaseWheel)
+foreach ($file in @('common.ps1', 'operator.ps1', 'serve.ps1', 'manage.ps1', 'harden.ps1', 'backup.ps1', 'trust.ps1', 'uninstall.ps1', 'schedule-backup.ps1')) {
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot $file) -Destination (Join-Path $InstallRoot "bin\$file") -Force
 }
-
-# --------------------------------------------------------------------------- application
-Write-Step 'Creating virtual environment and installing hash-pinned dependencies'
-& $PythonExe -m venv $dirs.Venv
-if ($LASTEXITCODE -ne 0) { throw 'Could not create the virtual environment' }
-$venvPython = Join-Path $dirs.Venv 'Scripts\python.exe'
-& $venvPython -m pip install --quiet --upgrade pip
-& $venvPython -m pip install --quiet --require-hashes -r (Join-Path $BackendDir 'requirements\prod.txt')
-if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed (hash verification is enforced)' }
-& $venvPython -m pip install --quiet --no-deps --force-reinstall $BackendDir
-if ($LASTEXITCODE -ne 0) { throw 'Application installation failed' }
-
-# --------------------------------------------------------------------------- secrets
-Write-Step 'Preparing secrets'
-$secretKeyFile = Join-Path $dirs.Secrets 'secret_key'
-if (-not (Test-Path $secretKeyFile)) {
+Copy-Item -LiteralPath $WinSWPath -Destination (Join-Path $InstallRoot 'service\EduNavApi.exe') -Force
+Copy-Item -LiteralPath $WinSWPath -Destination (Join-Path $InstallRoot 'service\EduNavProxy.exe') -Force
+Copy-Item -LiteralPath $CaddyPath -Destination (Join-Path $InstallRoot 'caddy\caddy.exe') -Force
+Assert-Hash (Join-Path $InstallRoot 'caddy\caddy.exe') $CaddySha256
+if (-not (Test-Path -LiteralPath $m.Secret)) {
     $bytes = New-Object byte[] 48
     $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
     try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
-    $key = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
-    Write-Utf8NoBom $secretKeyFile $key
-    Write-Host '    generated a new session signing key (not displayed)'
-} else {
-    Write-Host '    existing session signing key kept'
+    [IO.File]::WriteAllText($m.Secret, [Convert]::ToBase64String($bytes))
 }
-
-# Shared by the service definition and the operator wrapper so they can never drift apart.
-$appEnv = [ordered]@{
-    APP_ENV            = 'production'
-    SECRET_KEY_FILE    = $secretKeyFile
-    USERS_DATABASE_URL = 'sqlite:///' + (ConvertTo-FwdSlash $UsersDatabasePath)
-    PLANS_DATABASE_URL = 'sqlite:///' + (ConvertTo-FwdSlash $PlansDatabasePath)
-    LOG_DIR            = $dirs.Logs
-    LOG_FORMAT         = 'json'
-    LOG_LEVEL          = 'INFO'
-    PROXY_HOPS         = $(if ($CaddyPath) { '1' } else { '0' })
+if ($CertificateMode -eq 'Files') {
+    Copy-Item -LiteralPath $CertificatePath -Destination (Join-Path $DataRoot 'secrets\tls.crt') -Force
+    Copy-Item -LiteralPath $PrivateKeyPath -Destination (Join-Path $DataRoot 'secrets\tls.key') -Force
 }
-# Key rotation window: a retired key stays valid for verifying existing sessions until the file is deleted.
-$previousKeyFile = Join-Path $dirs.Secrets 'secret_key_previous'
-if (Test-Path $previousKeyFile) { $appEnv['SECRET_KEY_FALLBACKS_FILE'] = $previousKeyFile }
-
-# --------------------------------------------------------------------------- services
-Write-Step 'Registering the API service'
-foreach ($svc in @($ApiService, $ProxyService)) {
-    if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
-        Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
-    }
+[IO.File]::WriteAllText((Join-Path $InstallRoot 'caddy\Caddyfile'), $caddy)
+[IO.File]::WriteAllText((Join-Path $InstallRoot 'service\EduNavApi.xml'), $apiXml)
+[IO.File]::WriteAllText((Join-Path $InstallRoot 'service\EduNavProxy.xml'), $proxyXml)
+Write-Json (Join-Path $InstallRoot 'installation.json') $m
+Set-PrivateFileAcl (Join-Path $InstallRoot 'installation.json')
+Invoke-Managed $m @() -ProxyValidate
+foreach ($svc in @('EduNavApi', 'EduNavProxy')) {
+    $exe = Join-Path $InstallRoot "service\$svc.exe"
+    Assert-Hash $exe $WinSWSha256
+    if (-not $existing) { Invoke-Checked $exe @('install') }
+    Invoke-Checked 'sc.exe' @('config', $svc, 'obj=', "NT SERVICE\$svc")
+    Invoke-Checked 'sc.exe' @('sidtype', $svc, 'unrestricted')
 }
-$envBlock = ($appEnv.GetEnumerator() | ForEach-Object {
-    '  <env name="{0}" value="{1}"/>' -f $_.Key, [Security.SecurityElement]::Escape([string]$_.Value)
-}) -join "`n"
-$apiExe = Join-Path $dirs.Service "$ApiService.exe"
-Copy-Item -Force $WinSWPath $apiExe
-Write-Utf8NoBom (Join-Path $dirs.Service "$ApiService.xml") (Expand-Template `
-    (Join-Path $Templates 'degreeplan-api.xml.template') `
-    @{ INSTALL_ROOT = $InstallRoot; DATA_ROOT = $DataRoot; ENV_BLOCK = $envBlock })
-if (-not (Get-Service -Name $ApiService -ErrorAction SilentlyContinue)) { & $apiExe install }
-& sc.exe config $ApiService obj= "NT SERVICE\$ApiService" | Out-Null
-& sc.exe sidtype $ApiService unrestricted | Out-Null
-
-if ($CaddyPath) {
-    Write-Step 'Registering the reverse proxy (Caddy) service'
-    $caddyDir = Join-Path $InstallRoot 'caddy'
-    New-Item -ItemType Directory -Force -Path $caddyDir | Out-Null
-    Copy-Item -Force $CaddyPath (Join-Path $caddyDir 'caddy.exe')
-    Write-Utf8NoBom (Join-Path $caddyDir 'Caddyfile') (Expand-Template `
-        (Join-Path $PSScriptRoot '..\caddy\Caddyfile.template') `
-        @{ HOSTNAME = $Hostname; DATA_ROOT_FWD = (ConvertTo-FwdSlash $DataRoot) })
-    $proxyExe = Join-Path $dirs.Service "$ProxyService.exe"
-    Copy-Item -Force $WinSWPath $proxyExe
-    Write-Utf8NoBom (Join-Path $dirs.Service "$ProxyService.xml") (Expand-Template `
-        (Join-Path $Templates 'degreeplan-proxy.xml.template') `
-        @{ INSTALL_ROOT = $InstallRoot; DATA_ROOT = $DataRoot })
-    if (-not (Get-Service -Name $ProxyService -ErrorAction SilentlyContinue)) { & $proxyExe install }
-    & sc.exe config $ProxyService obj= "NT SERVICE\$ProxyService" | Out-Null
-    & sc.exe sidtype $ProxyService unrestricted | Out-Null
+$api = 'NT SERVICE\EduNavApi'; $proxy = 'NT SERVICE\EduNavProxy'
+Set-PrivateFileAcl (Join-Path $InstallRoot 'installation.json') @{$api = 'Read'}
+Set-Acl -LiteralPath $InstallRoot -AclObject (New-PrivateAcl @{$api = 'ReadAndExecute'; $proxy = 'ReadAndExecute'})
+Set-Acl -LiteralPath $DataRoot -AclObject (New-PrivateAcl @{$api = 'ReadAndExecute'; $proxy = 'ReadAndExecute'})
+Set-Acl -LiteralPath (Join-Path $DataRoot 'logs') -AclObject (New-PrivateAcl @{$api = 'ReadAndExecute'; $proxy = 'ReadAndExecute'})
+foreach ($dir in @('data', 'logs\api')) { Set-Acl -LiteralPath (Join-Path $DataRoot $dir) -AclObject (New-PrivateAcl @{$api = 'Modify'}) }
+foreach ($dir in @('caddy', 'logs\proxy')) { Set-Acl -LiteralPath (Join-Path $DataRoot $dir) -AclObject (New-PrivateAcl @{$proxy = 'Modify'}) }
+Set-Acl -LiteralPath (Join-Path $DataRoot 'secrets') -AclObject (New-PrivateAcl @{$api = 'ReadAndExecute'; $proxy = 'ReadAndExecute'})
+Set-PrivateFileAcl $m.Secret @{$api = 'Read'}
+if ($CertificateMode -eq 'Files') {
+    foreach ($file in @('tls.crt', 'tls.key')) { Set-PrivateFileAcl (Join-Path $DataRoot "secrets\$file") @{$proxy = 'Read'} }
 }
-
-# --------------------------------------------------------------------------- operator wrapper
-Write-Step 'Writing the operator command (bin\degreeplan.ps1)'
-$wrapper = @"
-#Requires -RunAsAdministrator
-# Operator CLI: runs the application's commands with the production environment, e.g.
-#   .\degreeplan.ps1 users create alice --role admin
-#   .\degreeplan.ps1 db status
-`$ErrorActionPreference = 'Stop'
-"@
-foreach ($entry in $appEnv.GetEnumerator()) {
-    $wrapper += "`n`$env:$($entry.Key) = '$($entry.Value.ToString().Replace("'", "''"))'"
+# Protected child directories need explicit grants; no arbitrary recursive host ACL changes.
+foreach ($dir in @('bin', 'service', 'caddy', 'venv')) {
+    Set-Acl -LiteralPath (Join-Path $InstallRoot $dir) -AclObject (New-PrivateAcl @{$api = 'ReadAndExecute'; $proxy = 'ReadAndExecute'})
 }
-$wrapper += "`n& '$venvPython' -m flask --app degreeplan.wsgi @args`nexit `$LASTEXITCODE`n"
-Write-Utf8NoBom (Join-Path $dirs.Bin 'degreeplan.ps1') $wrapper
-$cli = Join-Path $dirs.Bin 'degreeplan.ps1'
-
-# --------------------------------------------------------------------------- permissions
-Write-Step 'Applying permissions'
-$apiAccount = "NT SERVICE\$ApiService"
-
-# Databases and migrations (run as the installing administrator, before ACLs are tightened).
-Write-Step 'Applying database migrations'
-if ($AdoptExistingDatabases) {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli db stamp --target users
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli db stamp --target plans
-} else {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $cli db upgrade
-}
-if ($LASTEXITCODE -ne 0) { throw 'Database migration failed' }
-
-Set-StrictAcl $dirs.Secrets @("${apiAccount}:(OI)(CI)R")                # read-only for the service
-Set-StrictAcl $dirs.Data    @("${apiAccount}:(OI)(CI)M")
-Set-StrictAcl $dirs.Logs    @("${apiAccount}:(OI)(CI)M")
-Set-StrictAcl $dirs.Backups                                               # administrators only
-foreach ($dbPath in @($UsersDatabasePath, $PlansDatabasePath)) {
-    $dbDir = Split-Path $dbPath -Parent
-    if ($dbDir -ne $dirs.Data) { Set-StrictAcl $dbDir @("${apiAccount}:(OI)(CI)M") }
-}
-if ($CaddyPath) {
-    $proxyAccount = "NT SERVICE\$ProxyService"
-    Set-StrictAcl $dirs.Caddy @("${proxyAccount}:(OI)(CI)M")
-    & icacls.exe $dirs.Logs /grant "${proxyAccount}:(OI)(CI)M" /C | Out-Null   # Caddy access log
-    & icacls.exe $dirs.Www /grant "${proxyAccount}:(OI)(CI)RX" /C | Out-Null
-}
-
-# --------------------------------------------------------------------------- firewall
-if (-not $SkipFirewall -and $CaddyPath) {
-    Write-Step 'Opening inbound 80/443 (the API itself listens only on loopback)'
-    foreach ($rule in @(@{ N = 'DegreePlan HTTP (redirect/ACME)'; P = 80 }, @{ N = 'DegreePlan HTTPS'; P = 443 })) {
-        if (-not (Get-NetFirewallRule -DisplayName $rule.N -ErrorAction SilentlyContinue)) {
-            New-NetFirewallRule -DisplayName $rule.N -Direction Inbound -Protocol TCP -LocalPort $rule.P `
-                -Action Allow -Profile Domain, Private | Out-Null
+Invoke-Managed $m @('db', 'upgrade')
+Invoke-Managed $m @('db', 'verify')
+if ($AccessMode -ne 'Local') {
+    foreach ($port in @($HttpsPort) + $(if ($CertificateMode -eq 'ACME') { @(80) } else { @() })) {
+        $name = "EduNavProduction-TCP-$port"
+        $rule = Get-NetFirewallRule -Name $name -ErrorAction SilentlyContinue
+        if ($rule) {
+            if (-not $existing -or ($rule | Get-NetFirewallApplicationFilter).Program -ne (Join-Path $InstallRoot 'caddy\caddy.exe')) { throw "Firewall rule collision: $name" }
+            # Manifest settings cannot change during upgrade; preserve the audited owned rule.
+        } else {
+            New-NetFirewallRule -Name $name -DisplayName $name -Direction Inbound -Action Allow -Protocol TCP `
+                -LocalPort $port -RemoteAddress $RemoteAddress -Profile Domain,Private -Program (Join-Path $InstallRoot 'caddy\caddy.exe') | Out-Null
         }
     }
 }
-
-# --------------------------------------------------------------------------- start + verify
-Write-Step 'Starting services'
-Start-Service -Name $ApiService
-if ($CaddyPath) { Start-Service -Name $ProxyService }
-
-$ready = $false
-foreach ($attempt in 1..30) {
-    try {
-        $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://localhost:8000/api/v1/health/ready' -TimeoutSec 3
-        if ($response.StatusCode -eq 200) { $ready = $true; break }
-    } catch { Start-Sleep -Seconds 1 }
-}
-if (-not $ready) {
-    throw "The API did not become ready. Check $($dirs.Logs) and the service log in $($dirs.Logs)."
-}
-
-Write-Host ''
-Write-Host 'Installation complete. The API is healthy.' -ForegroundColor Green
-Write-Host "Next: create the first administrator (prompts for a password):"
-Write-Host "    & '$cli' users create <name> --role admin"
-Write-Host 'EduNav frontend is included in the application package; no separate frontend build or copy is needed.'
-Write-Host 'See docs\DEPLOYMENT.md for verification, backups and upgrades.'
+Start-Service EduNavApi
+Start-Service EduNavProxy
+'Services started; installation requires trusted HTTPS login/host acceptance verification. No CA trust was changed.'
+"Create first admin with: & '$InstallRoot\bin\operator.ps1' -CliArgs @('users','create','your-admin','--role','admin')"
+} catch {
+    $failure = $_
+    try { Stop-OwnedServices $m } catch { Write-Warning 'Could not stop services after failed installation; inspect service state immediately.' }
+    throw $failure
+} finally { Exit-Maintenance $lock }

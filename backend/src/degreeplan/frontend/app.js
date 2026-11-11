@@ -1,12 +1,12 @@
 import { api, configureApi } from "./api-client.js";
-import { STATUSES, courseStatus, progressSummary, semesterList, semesterOrder, subjectOf } from "./model.js";
+import { GRADES, STATUSES, courseStatus, gpaDisplay, progressSummary, semesterList, semesterOrder, subjectOf } from "./model.js";
 
 const $ = (id) => document.getElementById(id);
 const page = location.pathname.split("/").pop() || "index.html";
 const params = new URLSearchParams(location.search);
 const state = {
   user: null, programs: [], program: null, courses: [], plans: [], plan: null,
-  progress: [], issues: [], studentId: null, busy: false, courseTarget: null,
+  progress: [], summary: null, issues: [], studentId: null, busy: false, courseTarget: null,
 };
 const editable = () => state.user?.role === "student" && Boolean(state.user.profile);
 const statusOf = (id) => courseStatus(state.progress, id);
@@ -123,13 +123,14 @@ function updateNavigation() {
 }
 
 async function refresh() {
-  let nextPlans = [], nextProgress = [], nextPlan = null, nextIssues = [];
+  let nextPlans = [], nextProgress = [], nextPlan = null, nextIssues = [], nextSummary = null;
   if (editable() || state.studentId) {
-    const [plans, progress] = await Promise.all([
-      api.plans.list(state.studentId), api.progress.list(state.studentId),
+    const [plans, progress, summary] = await Promise.all([
+      api.plans.list(state.studentId), api.progress.list(state.studentId), api.progress.summary(state.studentId),
     ]);
     nextPlans = plans.items;
     nextProgress = progress.items;
+    nextSummary = summary;
     const requestedId = Number(params.get("plan"));
     let selected = nextPlans.find((plan) => plan.id === requestedId) ?? nextPlans[0];
     try {
@@ -148,7 +149,8 @@ async function refresh() {
   const nextProgram = programId ? await api.programs.get(programId) : null;
   // Publish only complete snapshots: failed fetches must not mix two plans' data.
   Object.assign(state, {
-    plans: nextPlans, progress: nextProgress, plan: nextPlan, issues: nextIssues, program: nextProgram,
+    plans: nextPlans, progress: nextProgress, summary: nextSummary,
+    plan: nextPlan, issues: nextIssues, program: nextProgram,
   });
   closeCourseModal();
   if (state.plan) params.set("plan", state.plan.id);
@@ -255,6 +257,16 @@ function renderDashboard() {
   if (!requirements().length) list.append(node("p", "empty-note", "No degree requirements available."));
 }
 
+function renderGpa() {
+  const display = gpaDisplay(state.summary);
+  for (const id of ["dashboardGPA", "degreeGPA", "summaryGPA"]) text(id, display.gpa);
+  for (const id of ["dashboardGradedCredits", "degreeGPACredits"]) text(id, display.credits);
+  for (const id of ["dashboardQualityPoints", "degreeQualityPoints"]) text(id, display.qualityPoints);
+  text("summaryGPADescription",
+    `${display.courses} completed graded courses; ${display.credits} GPA credit hours. `
+    + "All saved progress is included, not just this plan. Self-reported planning GPA, not official.");
+}
+
 function filtered(courses, search, subject, status, credits) {
   const query = search.trim().toLowerCase();
   return courses.filter((course) =>
@@ -310,6 +322,7 @@ function renderDegreeList() {
       node("p", "", subjectOf(course)));
     const actions = node("div", "degree-course-actions");
     actions.append(node("span", "degree-credit-label", `${course.credits} Credits`), badge(statusOf(course.id)));
+    const savedGrade = state.progress.find((item) => item.course_id === course.id)?.grade ?? null;
     if (editable()) {
       const select = node("select", "degree-status-select");
       for (const status of STATUSES) select.append(option(status, status));
@@ -318,6 +331,23 @@ function renderDegreeList() {
       select.addEventListener("change", () => perform(
         () => api.progress.set(course.id, select.value), "Course progress saved."));
       actions.append(select);
+      const gradeControl = node("div", "degree-grade-control");
+      const grade = node("select", "degree-grade-select"); grade.id = `grade-${course.id}`;
+      const gradeLabel = node("label", "", "Self-reported grade"); gradeLabel.htmlFor = grade.id;
+      grade.append(option("", "No grade"));
+      for (const value of GRADES) grade.append(option(value, value));
+      grade.value = savedGrade ?? "";
+      grade.setAttribute("aria-label", `Self-reported grade for ${course.code}`);
+      grade.disabled = state.busy;
+      grade.addEventListener("change", () => perform(
+        () => api.progress.set(course.id, statusOf(course.id), grade.value || null), "Course grade saved."));
+      gradeControl.append(gradeLabel, grade);
+      if (statusOf(course.id) !== "Completed") {
+        gradeControl.append(node("small", "", "Saved grade excluded from GPA until Completed."));
+      }
+      actions.append(gradeControl);
+    } else {
+      actions.append(node("span", "degree-grade-readonly", `Self-reported grade: ${savedGrade ?? "None"}`));
     }
     card.append(info, actions); list.append(card);
   }
@@ -441,6 +471,58 @@ function render() {
   renderDegree();
   renderCatalog();
   renderPlanner();
+  renderGpa();
+}
+
+function addPasswordForm(account) {
+  const details = node("details", "password-settings");
+  const summary = node("summary", "", "Change Password");
+  const form = node("form", "password-form"); form.id = "passwordChangeForm";
+  for (const [id, labelText, autocomplete] of [
+    ["currentPassword", "Current password", "current-password"],
+    ["newPassword", "New password", "new-password"],
+    ["confirmPassword", "Confirm new password", "new-password"],
+  ]) {
+    const label = node("label", "", labelText); label.htmlFor = id;
+    const input = node("input"); input.id = id; input.type = "password";
+    input.required = true; input.autocomplete = autocomplete; input.maxLength = 256;
+    form.append(label, input);
+  }
+  const note = node("p", "", "Use a unique password. Server password policy applies; other sessions will be signed out.");
+  const feedback = node("p"); feedback.id = "passwordChangeMessage"; feedback.setAttribute("role", "status");
+  const submit = node("button", "", "Save Password"); submit.type = "submit";
+  const clear = () => {
+    form.reset(); $("confirmPassword").setCustomValidity(""); feedback.textContent = "";
+  };
+  const cancel = button("Cancel", () => { clear(); details.open = false; summary.focus(); });
+  form.append(note, submit, cancel, feedback); details.append(summary, form); account.append(details);
+  details.addEventListener("toggle", () => { if (!details.open) clear(); });
+  for (const id of ["newPassword", "confirmPassword"]) {
+    $(id).addEventListener("input", () => $("confirmPassword").setCustomValidity(""));
+  }
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const current = $("currentPassword"), next = $("newPassword"), confirm = $("confirmPassword");
+    confirm.setCustomValidity(next.value === confirm.value ? "" : "New passwords do not match.");
+    if (!form.reportValidity() || state.busy) return;
+    state.busy = true;
+    const controls = [...form.querySelectorAll("button, input")];
+    controls.forEach((control) => { control.disabled = true; });
+    feedback.textContent = "Changing password…";
+    try {
+      await api.changePassword(current.value, next.value);
+      form.reset();
+      feedback.textContent = "Password changed. Other sessions have been signed out.";
+    } catch (error) {
+      feedback.textContent = errorMessage(error);
+    } finally {
+      // Never retain password fields after a request, successful or not.
+      current.value = ""; next.value = ""; confirm.value = "";
+      confirm.setCustomValidity("");
+      controls.forEach((control) => { control.disabled = false; });
+      state.busy = false;
+    }
+  });
 }
 
 function bindPages() {
@@ -555,6 +637,7 @@ async function main() {
         catch (error) { message(errorMessage(error), true); }
       }));
     document.querySelector("header").append(account);
+    addPasswordForm(account);
     const workspace = node("section", "workspace-controls"); workspace.id = "workspace";
     document.querySelector("main").prepend(workspace);
     if (!editable() && params.has("student_id")) {

@@ -65,11 +65,28 @@ def test_pages_reference_existing_assets_and_have_no_duplicate_ids(api, filename
 
 
 def test_frontend_has_no_browser_only_state_or_mock_course_arrays():
-    for name in ("app.js", "model.js"):
+    for name in ("app.js", "model.js", "index.html", "degree.html", "courses.html", "planner.html"):
         source = (ASSET_DIR / name).read_text(encoding="utf-8")
         assert "localStorage" not in source
         assert "innerHTML" not in source
         assert "COSC 1436" not in source
+
+
+@pytest.mark.parametrize("filename, ids", [
+    ("index.html", {"dashboardGPA", "dashboardGradedCredits", "dashboardQualityPoints"}),
+    ("degree.html", {"degreeGPA", "degreeGPACredits", "degreeQualityPoints", "summaryGPA"}),
+])
+def test_pinned_gpa_markup_has_safe_empty_defaults(api, filename, ids):
+    source = api.get(f"/{filename}").get_data(as_text=True)
+    parser = PageParser()
+    parser.feed(source)
+    assert ids <= set(parser.ids)
+    assert "7db3e17f7ef14469df4ba50b6a3090c87a99a395" in source
+    assert "Self-reported Planning GPA" in source
+    assert "GPA credits are not earned credits" in source
+    assert '<main class="dashboard" hidden>' in source
+    assert "<style>" not in source
+    assert "student-data.js" not in source
 
 
 def test_documented_client_matches_the_shipped_client():

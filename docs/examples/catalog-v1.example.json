@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "programs": [
+    {"code": "EXAMPLE", "name": "Synthetic example only — replace before real use", "total_credits": 6}
+  ],
+  "courses": [
+    {"code": "EX101", "title": "Example Foundations", "credits": 3, "description": "Synthetic catalog example, not an official course."},
+    {"code": "EX201", "title": "Example Continuation", "credits": 3, "description": "Synthetic catalog example, not an official course."}
+  ],
+  "prerequisites": [
+    {"course": "EX201", "prerequisite": "EX101"}
+  ],
+  "requirements": [
+    {"program": "EXAMPLE", "course": "EX101"},
+    {"program": "EXAMPLE", "course": "EX201"}
+  ]
+}

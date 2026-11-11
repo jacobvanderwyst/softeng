@@ -1,4 +1,6 @@
 """Authenticated student-reported course progress (not an official transcript)."""
+from typing import Any
+
 from flask import Blueprint, jsonify, request
 
 from .. import audit, clock
@@ -14,9 +16,7 @@ from .utils import int_arg
 bp = Blueprint("progress", __name__, url_prefix="/progress")
 
 
-@bp.get("")
-@login_required
-def list_progress():
+def _read_student_id() -> int:
     auth = require_auth()
     if auth.role == "student":
         student = people.student_by_user_id(users_conn(), auth.user_id)
@@ -31,7 +31,19 @@ def list_progress():
         level = access.access_to_student(users_conn(), user_id=auth.user_id, role=auth.role, student=student)
         if level is None:
             raise NotFoundError("Student not found.")
-    return jsonify({"items": progress_repo.list_for_student(plans_conn(), student_id)})
+    return student_id
+
+
+@bp.get("")
+@login_required
+def list_progress():
+    return jsonify({"items": progress_repo.list_for_student(plans_conn(), _read_student_id())})
+
+
+@bp.get("/summary")
+@login_required
+def progress_summary():
+    return jsonify(progress_repo.summary(plans_conn(), _read_student_id()))
 
 
 @bp.put("/<int:course_id>")
@@ -46,11 +58,17 @@ def set_progress(course_id: int):
     body = parse_body(CourseProgressIn)
     if not catalog.get_course(plans_conn(), course_id):
         raise ValidationError("Unknown course_id.")
-    progress_repo.set_status(plans_conn(), student["id"], course_id, body.status, clock.now())
+    progress_repo.set_status(plans_conn(), student["id"], course_id, body.status, clock.now(),
+                             grade=body.grade, set_grade="grade" in body.model_fields_set)
     plans_conn().commit()
+    detail: dict[str, Any] = {"course_id": course_id, "status": body.status}
+    if "grade" in body.model_fields_set:
+        detail.update(grade=body.grade, grade_changed=True)
     audit.record(
         users_conn(), "progress.set", target_type="student", target_id=student["id"],
-        detail={"course_id": course_id, "status": body.status},
+        detail=detail,
     )
     users_conn().commit()
-    return jsonify({"course_id": course_id, "status": body.status})
+    item = next(item for item in progress_repo.list_for_student(plans_conn(), student["id"])
+                if item["course_id"] == course_id)
+    return jsonify(item)
