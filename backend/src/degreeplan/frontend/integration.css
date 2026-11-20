@@ -1,4 +1,14 @@
 /* Integration controls extend the original EduNav design without a build step. */
+.admin-form { display: grid; gap: 12px; margin: 20px 0; }
+.admin-form input:not([type="checkbox"]), .admin-form select {
+    padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; min-width: 0;
+}
+.admin-form button, .plan-controls button, #adminLogout {
+    padding: 10px 14px; background: #b95100; color: white; border: 0; border-radius: 6px;
+}
+#requiredCourseList { max-height: 320px; overflow-y: auto; }
+#requiredCourseList label { display: flex; align-items: center; gap: 10px; padding: 8px; }
+#instructorList p { border-bottom: 1px solid #e2e8f0; padding: 10px 0; }
 [hidden] { display: none !important; }
 button, input, select { font: inherit; }
 button { cursor: pointer; }
@@ -23,8 +33,14 @@ button:disabled, select:disabled { cursor: not-allowed; opacity: .65; }
 .app-message.error { background: #fef2f2; color: #991b1b; }
 .app-message:empty { display: none; }
 .login-page { max-width: 520px; }
-#loginForm { display: grid; gap: 12px; margin-top: 20px; }
-#loginForm input { padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; }
+#loginForm, #registrationForm { display: grid; gap: 12px; margin-top: 20px; }
+#loginForm input, #registrationForm input, #registrationForm select {
+    padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; min-width: 0;
+}
+#registrationForm button { padding: 12px; background: #b95100; color: white; border: 0; border-radius: 6px; }
+#registrationForm small { color: #475569; }
+#registrationError { color: #991b1b; margin-top: 14px; }
+#registrationNotice { color: #176c56; }
 #loginError { color: #991b1b; margin-top: 14px; }
 .validation-issues { padding: 20px; margin-top: 24px; background: white; border-radius: 14px; }
 .validation-issues ul { padding-left: 24px; }

@@ -13,6 +13,11 @@ From a prepared development checkout, run `backend/scripts/build_release.ps1`. I
 The target installer requires `-WheelPath/-WheelSha256`, `-WinSWPath/-WinSWSha256`, and `-CaddyPath/-CaddySha256`. Verify trusted release checksums before use. A locally computed checksum alone does not authenticate an untrusted download. The target does not build arbitrary source or automatically fetch/run latest binaries.
 `install.ps1 -Help`, `-RenderOnly`, `-Preflight`, and `-WhatIf` support review before apply. Installing/applying requires elevation; script help and isolated rendering do not. Installed dependencies require network access or an explicitly prepared trusted package cache; no offline completeness is claimed.
 ## Security and certificate trust
+Student self-registration is enabled by default. `-EnableRegistration:$false` persists a closed policy; omission
+on upgrade preserves a stored choice, while manifests without the field use the enabled default. Explicit false
+settings remain effective until reopened. See [OPERATIONS.md](OPERATIONS.md) for policy and abuse limits.
+Bootstrap the first admin with the operator CLI before network exposure. The protected `admin.html` workspace
+creates instructors and edits program requirements; public signup never grants teacher/admin roles.
 Production uses Secure/HttpOnly cookies, same-origin frontend/API delivery, password hashing, CSRF/Origin checks and server-side permissions. Production configuration rejects insecure cookies and demo-owned database targets; demo commands are not registered in production.
 TLS certificate trust is explicit. Internal Caddy roots must be reviewed and trusted on each intended client; institutional certificates must match the configured DNS name. `trust.ps1` verifies a supplied DER certificate SHA256 fingerprint before an explicit root-store write. Never disable TLS verification to make production appear healthy.
 Code/config are read-only to services; database, log and certificate-state writes are scoped by service identity. `harden.ps1` audits host/application settings by default and supports application-specific repair preview using `-Apply -WhatIf`. It does not change RDP/WinRM, domain policy, disk encryption, Defender settings, or reboot the host.

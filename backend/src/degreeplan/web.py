@@ -5,8 +5,8 @@ from flask import Blueprint, send_from_directory
 
 ASSET_DIR = Path(__file__).resolve().parent / "frontend"
 PUBLIC_FILES = frozenset({
-    "index.html", "degree.html", "planner.html", "courses.html", "login.html",
-    "style.css", "integration.css", "app.js", "model.js", "api-client.js",
+    "index.html", "degree.html", "planner.html", "courses.html", "login.html", "register.html",
+    "style.css", "integration.css", "app.js", "model.js", "api-client.js", "admin.html", "admin.js",
 })
 bp = Blueprint("web", __name__)
 

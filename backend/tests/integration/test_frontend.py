@@ -11,9 +11,12 @@ class PageParser(HTMLParser):
         self.ids: list[str] = []
         self.assets: list[str] = []
         self.modules: list[str] = []
+        self.forms: list[dict] = []
 
     def handle_starttag(self, tag, attrs):
         attributes = dict(attrs)
+        if tag == "form":
+            self.forms.append(attributes)
         if "id" in attributes:
             self.ids.append(attributes["id"])
         if tag == "link" and attributes.get("rel") == "stylesheet":
@@ -59,7 +62,7 @@ def test_pages_reference_existing_assets_and_have_no_duplicate_ids(api, filename
     parser = PageParser()
     parser.feed(api.get(f"/{filename}").get_data(as_text=True))
     assert len(parser.ids) == len(set(parser.ids))
-    assert parser.modules == ["app.js"]
+    assert parser.modules == (["admin.js"] if filename == "admin.html" else ["app.js"])
     assert set(parser.assets) == {"style.css", "integration.css"}
     assert all((ASSET_DIR / asset).is_file() for asset in [*parser.assets, *parser.modules])
 
@@ -94,3 +97,17 @@ def test_documented_client_matches_the_shipped_client():
 
     example = Path(__file__).resolve().parents[3] / "docs" / "examples" / "api-client.js"
     assert example.read_text(encoding="utf-8") == (ASSET_DIR / "api-client.js").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("filename, action", [
+    ("login.html", "/api/v1/auth/login"), ("register.html", "/api/v1/auth/register"),
+])
+def test_account_forms_never_fall_back_to_credentials_in_query_strings(api, filename, action):
+    source = api.get(f"/{filename}").get_data(as_text=True)
+    parser = PageParser()
+    parser.feed(source)
+    assert parser.forms[0]["method"] == "post"
+    assert parser.forms[0]["action"] == action
+    if filename == "register.html":
+        for field in ("role", "advisor_id", "is_active", "user_id"):
+            assert f'name="{field}"' not in source

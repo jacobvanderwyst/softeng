@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Student Account | EduNav 2.0</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="integration.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo"><h1>EduNav 2.0</h1><span>Student Course Planner</span></div>
+    </header>
+    <main class="dashboard login-page">
+        <section class="progress-card">
+            <h2>Create a student account</h2>
+            <p>Registration creates a personal planning account, not verified institutional enrollment.
+                Teacher and administrator accounts must be created by an administrator.</p>
+            <p id="registrationStatus" role="status">Checking registration availability…</p>
+            <form id="registrationForm" method="post" action="/api/v1/auth/register" hidden>
+                <label for="registrationUsername">Username</label>
+                <input id="registrationUsername" name="username" autocomplete="username"
+                    maxlength="64" pattern="[A-Za-z0-9_.@\-]{1,64}" required
+                    aria-describedby="registrationUsernameHelp">
+                <small id="registrationUsernameHelp">1–64 letters, numbers, underscores, dots, @ signs or hyphens.
+                    Usernames are case-insensitive.</small>
+                <label for="registrationFirstName">First name</label>
+                <input id="registrationFirstName" name="first_name" autocomplete="given-name" maxlength="100" required>
+                <label for="registrationLastName">Last name</label>
+                <input id="registrationLastName" name="last_name" autocomplete="family-name" maxlength="100" required>
+                <label for="registrationProgram">Degree program (optional)</label>
+                <select id="registrationProgram" name="program_id">
+                    <option value="">Choose later when creating a plan</option>
+                </select>
+                <label for="registrationPassword">Password</label>
+                <input id="registrationPassword" name="password" type="password" autocomplete="new-password"
+                    maxlength="256" required aria-describedby="registrationPasswordHelp">
+                <small id="registrationPasswordHelp">Use at least 12 characters, avoid common passwords,
+                    and do not include your username.</small>
+                <label for="registrationConfirmPassword">Confirm password</label>
+                <input id="registrationConfirmPassword" name="confirm_password" type="password"
+                    autocomplete="new-password" maxlength="256" required>
+                <button type="submit">Create Account</button>
+            </form>
+            <p id="registrationError" role="alert"></p>
+            <p><a href="login.html">Back to sign in</a></p>
+        </section>
+    </main>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

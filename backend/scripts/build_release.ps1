@@ -58,7 +58,8 @@ with zipfile.ZipFile(sys.argv[1]) as wheel:
     names = wheel.namelist()
     if any("/__pycache__/" in name or name.endswith((".pyc", ".sqlite3", ".db", ".key", ".pem", "/.env")) for name in names):
         raise RuntimeError("Unexpected generated/private files in production wheel")
-    for required in ("frontend/app.js", "frontend/login.html", "migrations/plans/versions/plans_0003_progress_grade.py"):
+    for required in ("frontend/app.js", "frontend/login.html", "frontend/register.html", "frontend/admin.html", "frontend/admin.js",
+                     "migrations/plans/versions/plans_0003_progress_grade.py"):
         if not any(name.endswith(required) for name in names):
             raise RuntimeError("Required frontend/migration asset missing")
 '@

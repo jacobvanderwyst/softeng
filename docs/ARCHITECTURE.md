@@ -44,7 +44,7 @@ explicitly owned repository-local pair. See the platform quickstarts for actual 
 | `repositories/` | all SQL (Core expressions, bound parameters only); callers own the transaction |
 | `services/` | business rules without HTTP: `plan_rules` (prerequisites, credit limits), `access` (authorization) |
 | `security/` | passwords, sessions, lockout, auth decorators, request protection (CSRF/Origin, headers, CORS, rate limit) |
-| `api/` | Flask blueprints under `/api/v1`: `health`, `auth`, `catalog`, `plans`, `progress` |
+| `api/` | Flask blueprints under `/api/v1`: `health`, `auth`, `catalog`, `plans`, `progress`, `admin` |
 | `frontend/`, `web.py` | packaged EduNav HTML/CSS/JS, explicit public-file allowlist, same-origin delivery |
 | `audit.py`, `logging_setup.py` | audit trail, JSON/text logging with redaction and request IDs |
 | `cli.py` | operator commands: `db`, `users`, and `dev` (development only) |
@@ -78,7 +78,7 @@ request log line.
   | --- | --- |
   | student | read and write their **own** plans |
   | teacher | read-only, only for students assigned to them (`students.advisor_id`) |
-  | admin | read-only for all plans; accounts are managed through the CLI, not the API |
+  | admin | read-only personal plans/grades; instructor provisioning and catalog program editing through admin-only APIs |
 
 - **Logging**: `app.log` (request lines: method, path without query string, status, duration, user id, IP, request ID)
   and `audit.log` plus the `audit_log` table (logins, failures, lockouts, logouts, password and account changes, plan
@@ -108,6 +108,23 @@ Status-marked planning credits are not verified earned credits. Retakes, transfe
 GPA forgiveness, academic standing and full institutional degree-audit rules are not implemented.
 
 ## API reference
+### Student self-registration
+`REGISTRATION_ENABLED` defaults true in development and production; explicit false disables it. Installed Windows production uses
+an explicit boolean manifest setting, not caller environment overrides. Anonymous JSON signup is Origin-checked
+and rate-limited, rejects signed-in callers and privileged/unknown fields, hashes passwords with the existing policy,
+and commits user/profile/audit together in the users database. Duplicate/racing usernames return a controlled conflict.
+Passwords retain their whitespace through registration and login. Successful registration sets no session cookie;
+the user signs in normally. Instructor accounts require an admin session or operator CLI; admin accounts/advisor
+assignments remain operator-managed. Signup is not verified
+enrollment and has no email verification or approval workflow.
+
+### Administrator management
+`admin.html` uses the existing session/CSRF client and administrator role checks on every API route.
+Instructor creation commits its user/profile/audit together and never returns credentials. Program edits preserve IDs
+and existing personal data; requirements are replaced in one plans-database transaction. A digest of metadata and
+required IDs is compared under a SQLite writer lock, rejecting stale edits. Program writes/audit remain separate
+database commits. Course import and student/advisor assignment stay in the operator workflow. Personal student
+plan/grade permissions are not expanded by catalog-administration privileges.
 
 Base path `/api/v1`. JSON in, JSON out. Errors always look like
 `{"error": {"code": "...", "message": "...", "request_id": "...", "details": [...]}}`, and `request_id` is also the
@@ -117,7 +134,8 @@ Base path `/api/v1`. JSON in, JSON out. Errors always look like
 
 1. Send `Content-Type: application/json` (otherwise `415`).
 2. Send cookies (`fetch(..., { credentials: "include" })`): the session is an HttpOnly cookie.
-3. Send `X-CSRF-Token` on every `POST`, `PUT`, `PATCH`, `DELETE`. The token comes from `login` or `GET /auth/me`; keep it
+3. Send `X-CSRF-Token` on authenticated writes (anonymous login/registration are pre-session exceptions).
+   The token comes from `login` or `GET /auth/me`; keep it
    in memory, not in `localStorage`.
 4. Call `GET /auth/me` on page load to restore the session (and get a fresh CSRF token).
 5. Treat `401` on a protected call as "show the login page".
@@ -125,12 +143,19 @@ Base path `/api/v1`. JSON in, JSON out. Errors always look like
 | Method and path | Who | Body / query | Returns |
 | --- | --- | --- | --- |
 | `POST /auth/login` | anyone | `{username, password}` | `{user: {username, role, profile}, csrf_token}` + cookie |
+| `GET /auth/registration-options` | anyone | | `{enabled:false}` when closed; otherwise password guidance and minimal program choices |
+| `POST /auth/register` | anonymous, when enabled | `{username,password,first_name,last_name,program_id?}` | `201 {ok:true}`; creates student only; no auto-login |
 | `GET /auth/me` | logged in | | same shape as login (fresh `csrf_token`) |
 | `POST /auth/logout` | logged in | | `{ok: true}` |
 | `POST /auth/change-password` | logged in | `{current_password, new_password}` | `{ok: true}`; revokes the user's other sessions |
 | `GET /courses` | logged in | `?q=&limit=&offset=` (limit 1-100) | `{items: [{id, code, title, credits}], total, limit, offset}` |
 | `GET /courses/{id}` | logged in | | course with `description` and `prerequisites` |
 | `GET /programs`, `GET /programs/{id}` | logged in | | programs; one program adds `requirements` |
+| `GET /admin/instructors` | admin only | `?q=&limit=&offset=` | paginated public instructor metadata and password-length guidance |
+| `POST /admin/instructors` | admin only | `{username,password,first_name,last_name,department?}` | `201` public metadata; role always teacher |
+| `GET /admin/programs/{id}` | admin only | | program/requirements and revision digest |
+| `POST /admin/programs` | admin only | `{code,name,total_credits,course_ids}` | `201` program/requirements/revision |
+| `PUT /admin/programs/{id}` | admin only | same fields plus `expected_revision` | updated program; `409` if stale; no personal data rewritten |
 | `GET /plans` | student; staff with `?student_id=` | | `{items: [plan headers]}` |
 | `POST /plans` | students | `{name, program_id}` | `201` + plan |
 | `GET /plans/{id}` | owner, assigned teacher, admin | | plan with `courses[{course_id, code, title, credits, term_index}]`, `total_credits`, `semesters[{term_index, name}]` |

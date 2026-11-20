@@ -7,7 +7,7 @@
   * Creates backend\.venv and installs the hash-pinned dependencies if needed.
   * Creates (or resets) the local databases under backend\instance, loads sample data and prints the
     random demo passwords ONCE. Existing databases and saved plans are preserved by default.
-  * On subsequent launches, generates and displays fresh passwords for alice and teacher1 only
+  * On subsequent launches, generates and displays fresh passwords for admin, alice and teacher1 only
     (unless -KeepDemoPasswords is supplied), revoking their old sessions and clearing their login lockouts.
   * Starts the API on http://localhost:<Port>.
 
@@ -63,7 +63,7 @@ USAGE (from the repository root)
 OPTIONS
   -Help, -h                  Show this menu only. No changes are made.
   -Port <number>             HTTP port (default: 5000).
-  -KeepDemoPasswords         Keep existing passwords instead of refreshing alice/teacher1.
+  -KeepDemoPasswords         Keep passwords instead of refreshing admin/alice/teacher1.
   -NoRun                     Set up databases/passwords without starting the server.
   -AdoptExistingDemo          Once only: adopt an existing, reviewed backend\instance demo pair.
   -FrontendOrigin <origin>   Allow a separate frontend origin, e.g. http://localhost:5173.
@@ -74,16 +74,17 @@ OPTIONS
 
 QUICK START
   1. Run .\backend\scripts\demo.ps1
-  2. Copy the displayed passwords for alice (student) and teacher1 (teacher).
+  2. Copy the passwords for admin (administrator), alice (student) and teacher1 (instructor).
   3. Open the printed HTTP Frontend URL (IPv4 loopback; default port 5000).
   4. Sign in as alice, create a plan, add semesters/courses, and update My Degree.
   5. Reload to check persistence. Sign out and use teacher1 for read-only student views.
      In the untouched sample database, Alice's student ID is 1.
+  6. Choose Administrator sign in with admin to create instructors and edit degree-program requirements.
   Stop the server with Ctrl+C.
 
 PASSWORDS AND DATA
   First setup: all six sample-account passwords are generated and displayed.
-  Later launches: only alice and teacher1 get new random passwords unless
+  Later launches: only admin, alice and teacher1 get new random passwords unless
   -KeepDemoPasswords is supplied. Their old sessions are revoked and lockouts cleared.
   Saved work is preserved unless -ClearSavedData or -Reset is supplied.
   -ClearSavedData affects ALL students, not just alice. It also runs with -NoRun.
@@ -111,7 +112,7 @@ EXAMPLES
 TROUBLESHOOTING
   "Bad request version" / strange \x16 characters:
     Use HTTP, not HTTPS. If your browser upgrades localhost, try http://127.0.0.1:5000/.
-  Lost alice/teacher1 password:
+  Lost admin/alice/teacher1 password:
     Stop the server, run normally again, and copy the newly displayed passwords.
   Port already in use:
     Stop the previous server or select another port with -Port 8080.
@@ -245,10 +246,10 @@ try {
         if ($KeepDemoPasswords) {
             Write-Host 'Existing passwords kept (-KeepDemoPasswords). No passwords are displayed.' -ForegroundColor Yellow
         } else {
-            Write-Step 'Generating fresh login passwords for alice and teacher1'
+            Write-Step 'Generating fresh login passwords for admin, alice and teacher1'
             & $venvPython -m flask --app degreeplan.wsgi dev refresh-demo-passwords
             if ($LASTEXITCODE -ne 0) { throw 'Could not refresh demo passwords. No database reset was performed.' }
-            Write-Host 'Copy the two passwords above. They change on the next launch unless you use -KeepDemoPasswords.' -ForegroundColor Yellow
+            Write-Host 'Copy the three passwords above. They change on the next launch unless you use -KeepDemoPasswords.' -ForegroundColor Yellow
         }
     }
 

@@ -41,11 +41,13 @@ function signIn() {
   location.replace(`login.html?${next}`);
 }
 
-function loginDestination() {
+function loginDestination(user) {
+  const fallback = user?.role === "admin" ? "/admin.html" : "/index.html";
   const destination = new URL(params.get("next") || "/index.html", location.origin);
-  const pages = ["/", "/index.html", "/degree.html", "/courses.html", "/planner.html"];
+  const pages = ["/", "/index.html", "/degree.html", "/courses.html", "/planner.html", "/admin.html"];
+  if (!params.get("next") || (destination.pathname === "/admin.html" && user?.role !== "admin")) return fallback;
   return destination.origin === location.origin && pages.includes(destination.pathname)
-    ? destination.pathname + destination.search : "/index.html";
+    ? destination.pathname + destination.search : fallback;
 }
 
 configureApi({ onUnauthorized: signIn });
@@ -604,23 +606,96 @@ function bindPages() {
   });
 }
 
+async function registrationPage() {
+  const form = $("registrationForm");
+  const password = $("registrationPassword"), confirmation = $("registrationConfirmPassword");
+  for (const input of [password, confirmation]) {
+    input.addEventListener("input", () => confirmation.setCustomValidity(""));
+  }
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    confirmation.setCustomValidity(password.value === confirmation.value ? "" : "Passwords do not match.");
+    if (!form.reportValidity() || state.busy) return;
+    state.busy = true;
+    const controls = [...form.querySelectorAll("input, select, button")];
+    controls.forEach((control) => { control.disabled = true; });
+    text("registrationError", "");
+    text("registrationStatus", "Creating your account…");
+    try {
+      await api.registration.create({
+        username: $("registrationUsername").value.trim(),
+        first_name: $("registrationFirstName").value.trim(),
+        last_name: $("registrationLastName").value.trim(),
+        password: password.value,
+        program_id: $("registrationProgram").value ? Number($("registrationProgram").value) : null,
+      });
+      location.replace("login.html?registered=1");
+    } catch (error) {
+      text("registrationError", errorMessage(error));
+      text("registrationStatus", "");
+      if (error.status === 403) form.hidden = true;
+    } finally {
+      password.value = ""; confirmation.value = ""; confirmation.setCustomValidity("");
+      controls.forEach((control) => { control.disabled = false; });
+      state.busy = false;
+    }
+  });
+  try {
+    const user = await api.restoreSession();
+    if (user) {
+      location.replace(loginDestination(user));
+      return;
+    }
+    const options = await api.registration.options();
+    if (!options.enabled) {
+      text("registrationStatus", "Self-registration is disabled. Contact your administrator for an account.");
+      return;
+    }
+    for (const program of options.programs) {
+      $("registrationProgram").append(option(program.id, `${program.code} — ${program.name}`));
+    }
+    password.minLength = options.password_min_length;
+    text("registrationPasswordHelp",
+      `Use at least ${options.password_min_length} characters, avoid common passwords, and do not include your username.`);
+    form.hidden = false;
+    text("registrationStatus", "");
+    $("registrationUsername").focus();
+  } catch (error) {
+    text("registrationStatus", "Registration could not be loaded. Reload to retry or return to sign in.");
+    text("registrationError", errorMessage(error));
+  }
+}
+
 async function main() {
+  if (page === "register.html") {
+    await registrationPage();
+    return;
+  }
   if (page === "login.html") {
+    if (params.get("next") === "/admin.html") text("loginHeading", "Administrator sign in");
+    if (params.get("registered") === "1") {
+      text("registrationNotice", "Account created. Sign in with your new username and password.");
+    }
+    // Registration discovery must never prevent an existing user from signing in.
+    api.registration.options().then((options) => {
+      $("registerLink").hidden = !options.enabled;
+    }).catch(() => { $("registerLink").hidden = true; });
     const form = $("loginForm");
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const submit = form.querySelector("button"); submit.disabled = true;
       text("loginError", "");
       try {
-        await api.login($("username").value, $("password").value);
+        const user = await api.login($("username").value, $("password").value);
         $("password").value = "";
-        location.replace(loginDestination());
+        location.replace(loginDestination(user));
       } catch (error) {
         text("loginError", errorMessage(error));
       } finally { submit.disabled = false; }
     });
     try {
-      if (await api.restoreSession()) location.replace(loginDestination());
+      const user = await api.restoreSession();
+      if (user) location.replace(loginDestination(user));
     } catch (error) { text("loginError", errorMessage(error)); }
     return;
   }
@@ -637,6 +712,11 @@ async function main() {
         catch (error) { message(errorMessage(error), true); }
       }));
     document.querySelector("header").append(account);
+    if (state.user.role === "admin") {
+      const administration = node("a", "", "Administration");
+      administration.href = "admin.html";
+      account.append(administration);
+    }
     addPasswordForm(account);
     const workspace = node("section", "workspace-controls"); workspace.id = "workspace";
     document.querySelector("main").prepend(workspace);

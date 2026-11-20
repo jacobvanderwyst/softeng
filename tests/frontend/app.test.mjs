@@ -48,6 +48,11 @@ function harness(overrides = {}) {
     querySelectorAll: () => [],
   };
   const api = {
+    restoreSession: async () => null,
+    registration: {
+      options: async () => ({ enabled: true, password_min_length: 12, programs: [] }),
+      create: async () => ({ ok: true }),
+    },
     plans: { list: async () => ({ items: [] }) },
     progress: {
       list: async () => ({ items: [] }),
@@ -55,21 +60,25 @@ function harness(overrides = {}) {
     },
     ...overrides,
   };
+  const navigation = [];
   const context = {
     ...model, api, document, URLSearchParams, URL,
     configureApi() {},
-    location: { pathname: "/degree.html", search: "", origin: "https://example.test" },
+    location: {
+      pathname: "/degree.html", search: "", origin: "https://example.test",
+      replace: (destination) => navigation.push(destination),
+    },
     history: { replaceState() {} },
   };
   vm.createContext(context);
   vm.runInContext(appSource.replace(/^import .+;\r?$/gm, "").replace(/\bmain\(\);\s*$/, "")
-    + "\nglobalThis.subject = { state, refresh, renderGpa, renderDegreeList, addPasswordForm };", context);
+    + "\nglobalThis.subject = { state, params, loginDestination, refresh, renderGpa, renderDegreeList, addPasswordForm, registrationPage };", context);
   function element(id, tag = "div", value = "") {
     const target = new Element(tag); target.id = id; target.value = value;
     elements.set(id, target);
     return target;
   }
-  return { ...context.subject, api, element, document };
+  return { ...context.subject, api, element, document, navigation };
 }
 
 test("GPA cards display the server snapshot even when plan requirements differ", () => {
@@ -150,4 +159,92 @@ test("password form validates confirmation, uses the client and clears all passw
   assert.equal(next.value, "");
   assert.equal(confirm.value, "");
   assert.equal(h.state.busy, false);
+});
+
+function registrationFixture() {
+  const h = harness();
+  const form = h.element("registrationForm", "form"); form.hidden = true;
+  for (const id of ["registrationUsername", "registrationFirstName", "registrationLastName",
+    "registrationPassword", "registrationConfirmPassword"]) form.append(h.element(id, "input"));
+  form.append(h.element("registrationProgram", "select"));
+  form.append(new Element("button"));
+  for (const id of ["registrationStatus", "registrationError", "registrationPasswordHelp"]) h.element(id, "p");
+  return { ...h, form };
+}
+
+test("registration loads only minimal program choices and renders names literally", async () => {
+  const h = registrationFixture();
+  h.api.registration.options = async () => ({
+    enabled: true, password_min_length: 14, programs: [{ id: 3, code: "CS", name: "<unsafe>" }],
+  });
+  await h.registrationPage();
+  assert.equal(h.form.hidden, false);
+  assert.equal(h.document.getElementById("registrationPassword").minLength, 14);
+  assert.equal(h.document.getElementById("registrationProgram").children[0].textContent, "CS — <unsafe>");
+});
+
+test("registration stays closed when disabled or options fail", async () => {
+  const h = registrationFixture();
+  h.api.registration.options = async () => ({ enabled: false });
+  await h.registrationPage();
+  assert.equal(h.form.hidden, true);
+  assert.match(h.document.getElementById("registrationStatus").textContent, /disabled/);
+  const failing = registrationFixture();
+  failing.api.registration.options = async () => { throw new Error("Options unavailable"); };
+  await failing.registrationPage();
+  assert.equal(failing.form.hidden, true);
+  assert.equal(failing.document.getElementById("registrationError").textContent, "Options unavailable");
+});
+
+test("registration confirms passwords, preserves whitespace, clears secrets and returns to sign in", async () => {
+  const h = registrationFixture();
+  await h.registrationPage();
+  const get = h.document.getElementById.bind(h.document);
+  get("registrationUsername").value = " new-user ";
+  get("registrationFirstName").value = " First ";
+  get("registrationLastName").value = " Last ";
+  get("registrationProgram").value = "3";
+  get("registrationPassword").value = "  test-only-value  ";
+  get("registrationConfirmPassword").value = "different";
+  const submitted = [];
+  h.api.registration.create = async (body) => { submitted.push(body); return { ok: true }; };
+  await h.form.listeners.get("submit")({ preventDefault() {} });
+  assert.equal(submitted.length, 0);
+  assert.match(get("registrationConfirmPassword").validityMessage, /do not match/);
+  get("registrationConfirmPassword").value = "  test-only-value  ";
+  get("registrationPassword").listeners.get("input")();
+  assert.equal(get("registrationConfirmPassword").validityMessage, "");
+  await h.form.listeners.get("submit")({ preventDefault() {} });
+  assert.deepEqual(JSON.parse(JSON.stringify(submitted[0])), {
+    username: "new-user", first_name: "First", last_name: "Last", program_id: 3, password: "  test-only-value  ",
+  });
+  assert.equal(get("registrationPassword").value, "");
+  assert.equal(get("registrationConfirmPassword").value, "");
+  assert.deepEqual(h.navigation, ["login.html?registered=1"]);
+});
+
+test("registration reports errors as text, clears passwords and blocks an already signed-in user", async () => {
+  const h = registrationFixture();
+  await h.registrationPage();
+  h.api.registration.create = async () => { throw new Error("<unsafe duplicate>"); };
+  await h.form.listeners.get("submit")({ preventDefault() {} });
+  assert.equal(h.document.getElementById("registrationError").textContent, "<unsafe duplicate>");
+  assert.equal(h.document.getElementById("registrationPassword").value, "");
+  assert.equal(h.state.busy, false);
+  const signedIn = registrationFixture();
+  signedIn.api.restoreSession = async () => ({ role: "teacher" });
+  await signedIn.registrationPage();
+  assert.equal(signedIn.form.hidden, true);
+  assert.deepEqual(signedIn.navigation, ["/index.html"]);
+});
+
+test("administrators land in management but login redirects cannot escape the application", () => {
+  const h = harness();
+  assert.equal(h.loginDestination({ role: "admin" }), "/admin.html");
+  assert.equal(h.loginDestination({ role: "student" }), "/index.html");
+  h.params.set("next", "https://foreign.example/admin.html");
+  assert.equal(h.loginDestination({ role: "admin" }), "/admin.html");
+  h.params.set("next", "/admin.html");
+  assert.equal(h.loginDestination({ role: "teacher" }), "/index.html");
+  assert.equal(h.loginDestination({ role: "admin" }), "/admin.html");
 });

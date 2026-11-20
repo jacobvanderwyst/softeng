@@ -9,17 +9,20 @@ param(
     [string]$WinSWPath, [string]$WinSWSha256,
     [string]$CaddyPath, [string]$CaddySha256,
     [string]$WheelPath, [string]$WheelSha256,
+    [switch]$EnableRegistration,
     [ValidateSet('Local', 'LAN', 'Public')][string]$AccessMode = 'Local',
     [ValidateSet('Internal', 'Files', 'ACME')][string]$CertificateMode = 'Internal',
     [string]$Hostname = 'localhost', [ValidateRange(1, 65535)][int]$HttpsPort = 8443,
     [string[]]$RemoteAddress = @(), [string]$CertificatePath, [string]$PrivateKeyPath
 )
+$registrationChoiceSpecified = $PSBoundParameters.ContainsKey('EnableRegistration')
 . (Join-Path $PSScriptRoot 'common.ps1')
 if ($Help) {
     'install.ps1 [-Preflight|-RenderOnly|-WhatIf] -WinSWPath <exe> -WinSWSha256 <sha256> -CaddyPath <exe> -CaddySha256 <sha256> -WheelPath <whl> -WheelSha256 <sha256>'
     'Defaults: Local, Internal CA, https://localhost:8443; no automatic trust. LAN/Public require -Hostname and -RemoteAddress.'
     'Files requires -CertificatePath/-PrivateKeyPath. Public ACME requires -HttpsPort 443 and reachable DNS/challenge port 80.'
     'Existing DegreePlan services are never adopted. Existing owned EduNav installation is backed up before upgrading.'
+    'Student self-registration is enabled by default. -EnableRegistration:$false opts out. Upgrades preserve explicit stored choices unless changed.'
     return
 }
 $InstallRoot = Get-SafePath $InstallRoot
@@ -48,6 +51,7 @@ $m = [pscustomobject]@{
     Secret = Join-Path $DataRoot 'secrets\secret_key'
     WinSWSha256 = $WinSWSha256; CaddySha256 = $CaddySha256
     WheelSha256 = $WheelSha256; InstalledUtc = [DateTime]::UtcNow.ToString('o')
+    RegistrationEnabled = (Resolve-RegistrationPolicy -Previous $null -Requested ([bool]$EnableRegistration) -Explicit $registrationChoiceSpecified)
     Hostname = $Hostname; HttpsPort = $HttpsPort; AccessMode = $AccessMode
     CertificateMode = $CertificateMode; RemoteAddress = $RemoteAddress
 }
@@ -126,6 +130,8 @@ foreach ($legacy in @('DegreePlanApi', 'DegreePlanProxy')) {
 $existing = Test-Path -LiteralPath (Join-Path $InstallRoot 'installation.json')
 if ($existing) {
     $old = Read-Install $InstallRoot
+    $m.RegistrationEnabled = Resolve-RegistrationPolicy -Previous $old -Requested ([bool]$EnableRegistration) `
+        -Explicit $registrationChoiceSpecified
     foreach ($key in @('DataRoot', 'Hostname', 'HttpsPort', 'AccessMode', 'CertificateMode')) {
         if ($old.$key -ne $m.$key) { throw "Upgrade cannot silently change $key." }
     }

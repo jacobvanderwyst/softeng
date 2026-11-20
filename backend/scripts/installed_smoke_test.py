@@ -50,6 +50,10 @@ password = secrets.token_urlsafe(24)
 cli("users", "create", "artifact-student", "--role", "student", "--first-name", "Artifact",
     "--last-name", "Student", "--program-id", "1", "--password-stdin", input_text=password + "\n")
 client = app.test_client()
+availability = client.get("/api/v1/auth/registration-options", base_url="https://localhost")
+check(availability.json["enabled"] is True, "installed production registration defaults enabled")
+check(client.get("/register.html", base_url="https://localhost").status_code == 200,
+      "wheel bundles student registration page")
 login = client.post("/api/v1/auth/login", base_url="https://localhost",
                     json={"username": "artifact-student", "password": password})
 check(login.status_code == 200, "installed application login")
@@ -59,6 +63,30 @@ saved = client.put("/api/v1/progress/1", base_url="https://localhost", headers=h
 check(saved.status_code == 200 and saved.json["grade"] == "A", "installed grade persistence")
 summary = client.get("/api/v1/progress/summary", base_url="https://localhost")
 check(summary.status_code == 200 and summary.json["gpa"] == 4.0, "installed authoritative GPA")
+admin_password = secrets.token_urlsafe(24)
+cli("users", "create", "artifact-admin", "--role", "admin", "--password-stdin", input_text=admin_password + "\n")
+administrator = app.test_client()
+signed = administrator.post("/api/v1/auth/login", base_url="https://localhost",
+                            json={"username": "artifact-admin", "password": admin_password})
+check(signed.status_code == 200, "installed administrator login")
+admin_headers = {"X-CSRF-Token": signed.json["csrf_token"], "Origin": "https://localhost"}
+teacher_password = secrets.token_urlsafe(24)
+teacher = administrator.post("/api/v1/admin/instructors", base_url="https://localhost", headers=admin_headers,
+                             json={"username": "artifact-teacher", "password": teacher_password,
+                                   "first_name": "Artifact", "last_name": "Teacher"})
+check(teacher.status_code == 201 and "password" not in teacher.json, "installed admin instructor provisioning")
+created = administrator.post("/api/v1/admin/programs", base_url="https://localhost", headers=admin_headers,
+                             json={"code": "ARTIFACT", "name": "Artifact program",
+                                   "total_credits": 3, "course_ids": [1]})
+check(created.status_code == 201, "installed admin degree-program creation")
+edited = administrator.put("/api/v1/admin/programs/" + str(created.json["id"]),
+                           base_url="https://localhost", headers=admin_headers,
+                           json={"code": "ARTIFACT", "name": "Artifact updated", "total_credits": 6,
+                                 "course_ids": [1, 2], "expected_revision": created.json["revision"]})
+check(edited.status_code == 200 and len(edited.json["requirements"]) == 2, "installed admin requirement editing")
+check(client.get("/api/v1/admin/instructors", base_url="https://localhost").status_code == 403,
+      "installed student cannot access admin data")
+check(client.get("/admin.html", base_url="https://localhost").status_code == 200, "wheel bundles admin interface")
 home = client.get("/", base_url="https://localhost")
 check(home.status_code == 200 and b"dashboardGPA" in home.data, "wheel bundles updated frontend")
 check("script-src 'self'" in home.headers["Content-Security-Policy"], "installed frontend CSP")

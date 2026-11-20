@@ -96,6 +96,12 @@ export const api = {
     }
   },
 
+  registration: {
+    options: () => request("GET", "/auth/registration-options"),
+    create: ({ username, password, first_name, last_name, program_id = null }) =>
+      request("POST", "/auth/register", { username, password, first_name, last_name, program_id }),
+  },
+
   async logout() {
     await request("POST", "/auth/logout");
     csrfToken = null;
@@ -120,6 +126,22 @@ export const api = {
   programs: {
     list: () => request("GET", "/programs"),
     get: (id) => request("GET", `/programs/${id}`), // includes required courses
+  },
+
+  admin: {
+    instructors: {
+      list: ({ q, limit = 25, offset = 0 } = {}) =>
+        request("GET", `/admin/instructors${qs({ q, limit, offset })}`),
+      create: ({ username, password, first_name, last_name, department = null }) =>
+        request("POST", "/admin/instructors", { username, password, first_name, last_name, department }),
+    },
+    programs: {
+      get: (id) => request("GET", `/admin/programs/${id}`),
+      create: ({ code, name, total_credits, course_ids }) =>
+        request("POST", "/admin/programs", { code, name, total_credits, course_ids }),
+      update: (id, { code, name, total_credits, course_ids, expected_revision }) =>
+        request("PUT", `/admin/programs/${id}`, { code, name, total_credits, course_ids, expected_revision }),
+    },
   },
 
   progress: {

@@ -131,6 +131,8 @@ class Settings:
     ratelimit_enabled: bool = True
     default_rate_limit: str = "300 per minute"
     login_rate_limit: str = "20 per minute"
+    registration_enabled: bool = True
+    registration_rate_limit: str = "5 per minute;20 per hour"
     lockout_threshold: int = 5
     lockout_seconds: int = 300
     # Business rules
@@ -217,6 +219,8 @@ class Settings:
             ratelimit_enabled=_bool(env, "RATELIMIT_ENABLED", True),
             default_rate_limit=env.get("DEFAULT_RATE_LIMIT") or "300 per minute",
             login_rate_limit=env.get("LOGIN_RATE_LIMIT") or "20 per minute",
+            registration_enabled=_bool(env, "REGISTRATION_ENABLED", True),
+            registration_rate_limit=env.get("REGISTRATION_RATE_LIMIT") or "5 per minute;20 per hour",
             lockout_threshold=_int(env, "LOCKOUT_THRESHOLD", 5, 3, 50),
             lockout_seconds=_int(env, "LOCKOUT_SECONDS", 300, 30, 86400),
             max_credits_per_term=_int(env, "MAX_CREDITS_PER_TERM", 21, 1, 60),

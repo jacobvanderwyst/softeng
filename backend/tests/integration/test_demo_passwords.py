@@ -15,17 +15,18 @@ def generated_credentials(result):
     return dict(line.split() for line in result.output.splitlines() if line.startswith("  "))
 
 
-def test_refresh_passwords_preserves_data_and_other_accounts(app, alice, teacher1, bob):
+def test_refresh_passwords_preserves_data_and_other_accounts(app, alice, teacher1, bob, admin):
     plan = alice.post("/api/v1/plans", json={"name": "Keep me", "program_id": 1}).get_json()
     alice.put(f"/api/v1/plans/{plan['id']}/semesters", json={"term_index": 1, "name": "Spring 2027"})
     alice.put(f"/api/v1/plans/{plan['id']}/courses", json={"course_id": 1, "term_index": 1})
     alice.put("/api/v1/progress/1", json={"status": "Completed"})
     credentials = generated_credentials(run(app, "dev", "refresh-demo-passwords"))
-    assert set(credentials) == {"alice", "teacher1"}
-    assert len(set(credentials.values())) == 2
+    assert set(credentials) == {"admin", "alice", "teacher1"}
+    assert len(set(credentials.values())) == 3
     assert all(len(password) >= 12 for password in credentials.values())
     assert alice.get("/api/v1/auth/me").status_code == 401
     assert teacher1.get("/api/v1/auth/me").status_code == 401
+    assert admin.get("/api/v1/auth/me").status_code == 401
     assert bob.get("/api/v1/auth/me").status_code == 200
     student = ApiClient(app)
     assert student.login("alice", PASSWORDS["alice"]).status_code == 401
@@ -42,7 +43,7 @@ def test_refresh_passwords_preserves_data_and_other_accounts(app, alice, teacher
     with app.extensions["degreeplan"].databases.users.connect() as conn:
         rows = security_store.recent_audit(conn, 20)
     resets = [row for row in rows if row["action"] == "user.set_password"]
-    assert len(resets) == 2
+    assert len(resets) == 3
     assert all(password not in str(rows) for password in credentials.values())
 
 
@@ -88,7 +89,7 @@ def test_invalid_demo_accounts_do_not_partially_reset_passwords(app, problem):
     assert ApiClient(app).login("alice", PASSWORDS["alice"]).status_code == 200
 
 
-def test_failed_second_update_rolls_back_both_accounts(app, monkeypatch, alice, teacher1):
+def test_failed_second_update_rolls_back_all_accounts(app, monkeypatch, alice, teacher1, admin):
     original = users_repo.set_password_hash
     count = 0
 
@@ -105,17 +106,18 @@ def test_failed_second_update_rolls_back_both_accounts(app, monkeypatch, alice, 
     assert "Fresh demo passwords" not in result.output
     assert alice.get("/api/v1/auth/me").status_code == 200
     assert teacher1.get("/api/v1/auth/me").status_code == 200
-    for name in ("alice", "teacher1"):
+    assert admin.get("/api/v1/auth/me").status_code == 200
+    for name in ("admin", "alice", "teacher1"):
         assert ApiClient(app).login(name, PASSWORDS[name]).status_code == 200
 
 
 def test_generation_retries_passwords_that_contain_the_username(app, monkeypatch):
-    first = "alice-" + secrets.token_urlsafe(20)
-    valid = (secrets.token_urlsafe(24), secrets.token_urlsafe(24))
+    first = "admin-" + secrets.token_urlsafe(20)
+    valid = (secrets.token_urlsafe(24), secrets.token_urlsafe(24), secrets.token_urlsafe(24))
     generated = iter((first, *valid))
     monkeypatch.setattr("degreeplan.cli.secrets.token_urlsafe", lambda size: next(generated))
     credentials = generated_credentials(run(app, "dev", "refresh-demo-passwords"))
-    assert credentials == dict(zip(("alice", "teacher1"), valid, strict=True))
+    assert credentials == dict(zip(("admin", "alice", "teacher1"), valid, strict=True))
 
 
 def test_demo_password_refresh_is_absent_and_refuses_production(make_app, tmp_path):

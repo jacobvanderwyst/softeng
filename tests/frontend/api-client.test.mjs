@@ -15,6 +15,23 @@ test("browser API contract", async (t) => {
   let result = response({ user: { username: "student", role: "student" }, csrf_token: "test-csrf" });
   globalThis.fetch = async (url, options) => { calls.push({ url, ...options }); return result; };
 
+  await t.test("registration uses the public contract and does not accept privilege fields", async () => {
+    result = response({ enabled: true, programs: [], password_min_length: 12 });
+    assert.equal((await api.registration.options()).enabled, true);
+    assert.equal(calls.at(-1).url, "/api/v1/auth/registration-options");
+    result = response({ ok: true }, 201);
+    await api.registration.create({
+      username: "new-student", password: "test-only-registration-value",
+      first_name: "New", last_name: "Student", role: "admin", advisor_id: 1,
+    });
+    assert.equal(calls.at(-1).url, "/api/v1/auth/register");
+    assert.equal(calls.at(-1).credentials, "include");
+    assert.deepEqual(JSON.parse(calls.at(-1).body), {
+      username: "new-student", password: "test-only-registration-value",
+      first_name: "New", last_name: "Student", program_id: null,
+    });
+    result = response({ user: { username: "student", role: "student" }, csrf_token: "test-csrf" });
+  });
   await t.test("login uses cookies and acquires an in-memory CSRF token", async () => {
     await api.login("student", "generated-by-test");
     assert.equal(calls.at(-1).credentials, "include");
@@ -39,6 +56,23 @@ test("browser API contract", async (t) => {
     assert.deepEqual(JSON.parse(calls.at(-1).body), { status: "Completed", grade: null });
     result = response(null, 204);
     assert.equal(await api.plans.removeSemester(5, 2), null);
+  });
+  await t.test("admin account creation filters privilege overrides and program updates carry revisions", async () => {
+    result = response({ ok: true });
+    await api.admin.instructors.create({
+      username: "teacher3", password: "test-only-instructor-value",
+      first_name: "New", last_name: "Teacher", role: "admin",
+    });
+    assert.equal(calls.at(-1).url, "/api/v1/admin/instructors");
+    assert.equal(calls.at(-1).headers["X-CSRF-Token"], "test-csrf");
+    assert.equal(JSON.parse(calls.at(-1).body).role, undefined);
+    await api.admin.programs.update(4, {
+      code: "CS", name: "Computer Science", total_credits: 120, course_ids: [1, 2],
+      expected_revision: "a".repeat(64),
+    });
+    assert.equal(calls.at(-1).url, "/api/v1/admin/programs/4");
+    assert.equal(calls.at(-1).method, "PUT");
+    assert.equal(JSON.parse(calls.at(-1).body).expected_revision, "a".repeat(64));
   });
   await t.test("query parameters encode search and staff selection", async () => {
     result = response({ items: [] });

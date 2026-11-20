@@ -1,8 +1,8 @@
 """Operator CLI (run with: flask --app degreeplan.wsgi <group> <command>).
 
 * ``db``    migrations, status, backups
-* ``users`` the ONLY way to create accounts in production (passwords are prompted, never passed as
-            arguments, and never stored or logged in clear text)
+* ``users`` operator account/profile management; staff accounts cannot self-register. Passwords are
+            prompted, never passed as arguments, and never stored or logged in clear text.
 * ``dev``   sample data for local development (not registered when APP_ENV=production)
 """
 from __future__ import annotations
@@ -433,14 +433,14 @@ def clear_demo_saved_data(yes: bool) -> None:
 
 @dev_cli.command("refresh-demo-passwords")
 def refresh_demo_passwords() -> None:
-    """Generate and display new Alice/teacher1 passwords without resetting any data."""
+    """Generate and display new admin/Alice/teacher1 passwords without resetting any data."""
     svc = context.services()
     if svc.settings.is_production:
         raise click.ClickException("Demo passwords cannot be refreshed in production.")
     conn = users_conn()
     accounts = []
-    # Validate BOTH accounts before changing either. Never activate or change someone's role.
-    for username, role in (("alice", "student"), ("teacher1", "teacher")):
+    # Validate every demo account before changing any. Never activate or change roles.
+    for username, role in (("admin", "admin"), ("alice", "student"), ("teacher1", "teacher")):
         user = users_repo.get_by_username(conn, username)
         if not user or user["role"] != role or not user["is_active"]:
             raise click.ClickException(

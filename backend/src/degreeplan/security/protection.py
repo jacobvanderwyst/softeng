@@ -19,8 +19,8 @@ limiter = Limiter(key_func=get_remote_address)
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 CSRF_HEADER = "X-CSRF-Token"
-# Login has no session yet; it is protected by the Origin check, SameSite cookies, lockout and rate limits.
-CSRF_EXEMPT_ENDPOINTS = {"v1.auth.login"}
+# Pre-session endpoints require JSON and Origin validation. Registration also rejects signed-in callers.
+CSRF_EXEMPT_ENDPOINTS = {"v1.auth.login", "v1.auth.register"}
 
 
 def _allowed_origins(settings: Settings) -> set[str]:

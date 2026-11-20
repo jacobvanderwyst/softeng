@@ -4,17 +4,18 @@ import logging
 from typing import Any
 
 from flask import Blueprint, jsonify, request
+from sqlalchemy.exc import IntegrityError
 
 from .. import audit, clock, context
-from ..db import users_conn
-from ..errors import AuthError, TooManyRequestsError, ValidationError
-from ..repositories import people
+from ..db import plans_conn, users_conn
+from ..errors import AuthError, ConflictError, ForbiddenError, TooManyRequestsError, ValidationError
+from ..repositories import catalog, people
 from ..repositories import users as users_repo
 from ..security import lockout
-from ..security.auth import login_required, require_auth
+from ..security.auth import current_auth, login_required, require_auth
 from ..security.passwords import PasswordPolicyError
 from ..security.protection import limiter
-from ..validation import ChangePasswordIn, LoginIn, parse_body
+from ..validation import ChangePasswordIn, LoginIn, RegisterIn, parse_body
 
 log = logging.getLogger(__name__)
 bp = Blueprint("auth", __name__, url_prefix="/auth")
@@ -57,6 +58,62 @@ def _set_session_cookie(response, token: str) -> None:
 def _clear_session_cookie(response) -> None:
     s = context.settings()
     response.delete_cookie(s.cookie_name, httponly=True, secure=s.cookie_secure, samesite="Lax", path="/")
+
+
+@bp.get("/registration-options")
+@limiter.limit("30 per minute")
+def registration_options():
+    settings = context.settings()
+    if not settings.registration_enabled:
+        return jsonify({"enabled": False})
+    programs = catalog.list_programs(plans_conn())
+    return jsonify({
+        "enabled": True,
+        "password_min_length": settings.password_min_length,
+        "programs": [{"id": program["id"], "code": program["code"], "name": program["name"]}
+                     for program in programs],
+    })
+
+
+@bp.post("/register")
+@limiter.limit(lambda: context.settings().registration_rate_limit)
+def register():
+    svc = context.services()
+    if not svc.settings.registration_enabled:
+        raise ForbiddenError("Self-registration is disabled. Contact your administrator.")
+    if current_auth() is not None:
+        raise ConflictError("Sign out before registering another account.")
+    body = parse_body(RegisterIn)
+    username = users_repo.normalize_username(body.username)
+    try:
+        svc.passwords.validate_new(body.password, username)
+    except PasswordPolicyError as exc:
+        raise ValidationError(
+            "Password does not meet the policy.",
+            details=[{"field": "password", "message": problem} for problem in exc.problems],
+        ) from None
+    if body.program_id is not None and not catalog.program_exists(plans_conn(), body.program_id):
+        raise ValidationError(
+            "Unknown degree program.", details=[{"field": "program_id", "message": "Choose a valid program."}],
+        )
+    # All mutable records are in one database: account, student profile and audit commit together.
+    conn = users_conn()
+    try:
+        user_id = users_repo.create(
+            conn, username=username, password_hash=svc.passwords.hash(body.password),
+            role="student", now=clock.now(),
+        )
+        people.create_student(
+            conn, user_id=user_id, first_name=body.first_name, last_name=body.last_name,
+            program_id=body.program_id, advisor_id=None,
+        )
+        audit.record(conn, "auth.register", actor_user_id=user_id, actor_role="student",
+                     target_type="user", target_id=user_id)
+        conn.commit()
+    except IntegrityError:
+        conn.rollback()
+        raise ConflictError("This username cannot be registered. Choose another username or sign in.") from None
+    return jsonify({"ok": True}), 201
 
 
 @bp.post("/login")

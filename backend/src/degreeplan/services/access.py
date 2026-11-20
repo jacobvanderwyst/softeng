@@ -2,7 +2,7 @@
 
 * student: read + write their OWN plans only
 * teacher: read-only access to plans of students assigned to them (students.advisor_id)
-* admin:   read-only access to plans (account management happens through the CLI, not the API)
+* admin:   read-only personal plans; instructor/catalog management uses separate admin-only endpoints
 """
 from __future__ import annotations
 

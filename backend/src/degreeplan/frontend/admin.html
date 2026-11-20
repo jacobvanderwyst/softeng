@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration | EduNav 2.0</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="integration.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo"><h1>EduNav 2.0</h1><span>Administration</span></div>
+        <nav><a href="index.html">Dashboard</a><a href="admin.html">Administration</a></nav>
+        <div class="account-controls"><span id="adminIdentity"></span><button id="adminLogout" hidden>Sign Out</button></div>
+    </header>
+    <main class="dashboard">
+        <h2>Administrator workspace</h2>
+        <p id="adminMessage" class="app-message" role="status">Checking administrator access…</p>
+        <div id="adminContent" hidden>
+            <section class="progress-card">
+                <h2>Create instructor account</h2>
+                <p>Only administrators can create instructors. Share the initial password securely; the instructor
+                    can change it after signing in. Advisor assignments remain operator-managed.</p>
+                <form id="instructorForm" class="admin-form" method="post" action="/api/v1/admin/instructors">
+                    <label for="instructorUsername">Username</label>
+                    <input id="instructorUsername" autocomplete="off" maxlength="64" pattern="[A-Za-z0-9_.@\-]{1,64}" required>
+                    <label for="instructorFirstName">First name</label>
+                    <input id="instructorFirstName" autocomplete="off" maxlength="100" required>
+                    <label for="instructorLastName">Last name</label>
+                    <input id="instructorLastName" autocomplete="off" maxlength="100" required>
+                    <label for="instructorDepartment">Department (optional)</label>
+                    <input id="instructorDepartment" autocomplete="off" maxlength="120">
+                    <label for="instructorPassword">Initial password</label>
+                    <input id="instructorPassword" type="password" autocomplete="new-password" maxlength="256" required>
+                    <small id="instructorPasswordHelp">The normal server password policy applies.</small>
+                    <label for="instructorConfirmPassword">Confirm initial password</label>
+                    <input id="instructorConfirmPassword" type="password" autocomplete="new-password" maxlength="256" required>
+                    <button type="submit">Create Instructor</button>
+                </form>
+                <h3>Instructors</h3>
+                <form id="instructorSearchForm" class="workspace-form">
+                    <label for="instructorSearch">Search instructors</label>
+                    <input id="instructorSearch" type="search" maxlength="64">
+                    <button type="submit">Search</button>
+                </form>
+                <p id="instructorCount"></p>
+                <div id="instructorList"></div>
+                <div class="plan-controls">
+                    <button id="instructorPrevious" type="button">Previous</button>
+                    <button id="instructorNext" type="button">Next</button>
+                </div>
+            </section>
+            <section class="progress-card">
+                <h2>Degree programs and required courses</h2>
+                <p>These are catalog requirements, not students' personal semester plans. Changes affect existing
+                    plans' validation but do not rewrite saved plans, courses, grades or progress.</p>
+                <div class="plan-controls">
+                    <label for="adminProgramSelect">Degree program</label>
+                    <select id="adminProgramSelect"><option value="">Create a new degree program</option></select>
+                    <button id="newProgram" type="button">New Program</button>
+                    <button id="reloadProgram" type="button">Reload Program (discard edits)</button>
+                </div>
+                <form id="programForm" class="admin-form" method="post" action="/api/v1/admin/programs">
+                    <label for="programCode">Program code</label>
+                    <input id="programCode" maxlength="32" required>
+                    <label for="programName">Program name</label>
+                    <input id="programName" maxlength="200" required>
+                    <label for="programCredits">Total program credits</label>
+                    <input id="programCredits" type="number" min="1" max="1000" required>
+                    <label for="requiredCourseSearch">Filter available courses</label>
+                    <input id="requiredCourseSearch" type="search" maxlength="200">
+                    <p id="requiredCourseCount"></p>
+                    <fieldset><legend>Required courses (choose at least one)</legend><div id="requiredCourseList"></div></fieldset>
+                    <p>Course creation/import remains a controlled operator task. Program validation is not a full
+                        institutional graduation audit.</p>
+                    <button id="saveProgram" type="submit">Save Degree Program</button>
+                </form>
+            </section>
+        </div>
+    </main>
+    <script type="module" src="admin.js"></script>
+</body>
+</html>

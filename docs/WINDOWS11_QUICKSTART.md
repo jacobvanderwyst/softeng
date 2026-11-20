@@ -6,6 +6,9 @@ Use Windows 11 Pro/Enterprise with Windows PowerShell 5.1 and administrator righ
 3. Follow [Windows Server quickstart steps 2–4](WINDOWS_SERVER_QUICKSTART.md): use the default `Local` access mode, `Internal` certificates and `https://localhost:8443/`.
 4. Explicitly review and trust the generated local CA using `trust.ps1`; the service does not silently modify certificate trust.
 5. Create an administrator, import your reviewed catalog, then create teacher/student accounts. Production starts empty and never receives Alice or other demo accounts automatically.
+   Student registration is enabled by default; use `-EnableRegistration:$false` to close it. Existing stored false
+   settings remain false until explicitly reopened. After the first CLI admin is created, use Administrator sign in
+   to create instructors and edit degree-program requirements. Additional admins/advisor assignments remain operator-managed.
 6. Open **https://localhost:8443/**. Confirm the certificate is trusted, sign in, create a plan, save a course status/grade, reload and verify persistence.
 ### What is installed
 - Code: `C:\Program Files\EduNav`.

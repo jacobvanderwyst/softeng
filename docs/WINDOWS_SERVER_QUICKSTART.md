@@ -14,7 +14,7 @@ $install = @{
     WinSWSha256 = '<published-winsw-sha256>'
     CaddyPath = 'C:\tools\caddy.exe'
     CaddySha256 = '<published-caddy-sha256>'
-    WheelPath = 'C:\release\degreeplan_backend-1.1.0-py3-none-any.whl'
+    WheelPath = 'C:\release\degreeplan_backend-1.3.0-py3-none-any.whl'
     WheelSha256 = '<verified-release-wheel-sha256>'
 }
 .\deploy\windows\install.ps1 @install -Preflight
@@ -71,7 +71,13 @@ $operator = 'C:\Program Files\EduNav\bin\operator.ps1'
 & $operator -CliArgs @('users','list','--details')
 ```
 Passwords are prompted without echo. Confirm actual program IDs before creating students; do not assume a real import assigns ID 1. `docs/examples/catalog-v1.example.json` documents the format using synthetic data; review and replace it rather than treating it as an official catalog. Imports are additive; scalar changes require `--update`, not destructive replacement.
-Administrators manage accounts through the operator CLI, not a public registration or web-admin page. `users update-profile` updates names, program/advisor assignments or department; account passwords and activation/session controls are separate commands.
+Student self-registration is enabled by default; `-EnableRegistration:$false` disables it. Omitting the flag preserves
+an existing stored choice, including a previous false; use `-EnableRegistration` to explicitly reopen that installation.
+Signup is not verified enrollment; new students have no advisor until an operator reviews their profile.
+After bootstrapping the first administrator with the CLI, use **Administrator sign in** for `admin.html`: create
+instructor accounts and create/edit degree programs and required-course lists from the imported catalog.
+Additional admin accounts and student/advisor assignments remain operator-managed. No hardcoded admin password exists.
+`users update-profile` updates names, program/advisor assignments or department; password and session controls are separate.
 ## 5. Verify, back up and audit
 ```powershell
 $manage = 'C:\Program Files\EduNav\bin\manage.ps1'

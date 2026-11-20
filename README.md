@@ -3,6 +3,9 @@
 EduNav web application with a Flask API, separate users and plans databases, and Windows Server deployment tooling.
 The integrated HTML/CSS/JavaScript frontend requires no Node build step. Version 1.1 adds persisted grades and
 server-calculated planning GPA, production data management, and safer Windows installation/hardening workflows.
+Version 1.2 adds student self-registration with password validation and optional degree-program selection.
+Version 1.3 enables student registration by default and adds administrator instructor/degree-program management.
+Explicit disabled registration settings are still respected.
 
 ## Choose your setup
 
@@ -34,7 +37,7 @@ Open **http://localhost:5000/** and sign in using a demo student account (for ex
 shown by the script. Create a plan, add semesters/courses, and use My Degree to update student-reported progress.
 Prefer the IPv4 loopback HTTP URL printed by the launcher if you also use production HTTPS: browsers may remember
 a `localhost` HSTS policy and otherwise upgrade the HTTP demo to the wrong protocol.
-On later launches, new random passwords for `alice` and `teacher1` are displayed without deleting any data.
+On later launches, new random passwords for `admin`, `alice` and `teacher1` are displayed without deleting any data.
 Use `.\scripts\demo.ps1 -KeepDemoPasswords` from `backend` to keep existing/manually chosen passwords instead.
 Use `.\scripts\demo.ps1 -Help` (or `-h`) for the built-in demo guide, options and troubleshooting without making changes.
 Use `.\scripts\demo.ps1 -ClearSavedData` to start with **all students' saved plans and progress deleted**, keeping
@@ -52,6 +55,29 @@ Older demo databases need a one-time explicit ownership check before the launche
 `.\backend\scripts\demo.ps1 -AdoptExistingDemo -KeepDemoPasswords`.
 Review/back up the pair first; never adopt production data as demo data. The launcher ignores dotenv redirects,
 rejects database/file overrides and linked targets, and pins both demo databases to `backend\instance`.
+
+## Student registration
+
+In the demo, choose **Create a student account** on the sign-in page, complete the form, then sign in with your
+new credentials. Self-registration creates a student account only; teachers/admins and advisor assignments remain
+administrator-managed. Registration is not verification of institutional enrollment, and no email verification or
+approval workflow is provided.
+
+Registration is enabled by default in development and production. Use `-EnableRegistration:$false` in the Windows
+installer to close signup, or `REGISTRATION_ENABLED=false` for manual deployments. Existing stored disabled choices
+are preserved on upgrade; use `-EnableRegistration` explicitly to reopen them. `REGISTRATION_RATE_LIMIT` defaults to
+`5 per minute;20 per hour` per client IP. Review abuse/shared-network limits before opening signup publicly.
+
+## Administrator workspace
+
+Choose **Administrator sign in**, or sign in normally with an admin account to open `admin.html`.
+Administrators can create instructor accounts and create/edit degree programs and required-course lists.
+Programme edits affect validation but do not rewrite students' saved semester plans, grades or progress.
+Stale program edits are rejected until reloaded. Teachers remain read-only for assigned students.
+
+For the demo, normal startup displays a freshly generated `admin` password; `-KeepDemoPasswords` preserves it.
+Production's first admin must still be created with the protected operator CLI; no public admin registration or
+hardcoded administrator password is provided. Import catalog courses through the operator workflow before building requirements.
 
 ## Build a production release
 

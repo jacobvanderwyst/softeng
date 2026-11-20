@@ -22,18 +22,18 @@ The script creates `backend\.venv` and installs the hash-pinned dependencies (fi
 | `-Reset` | delete the local databases, reseed, new passwords |
 | `-ClearSavedData` | delete all students' saved plans, semesters, planned courses and progress; retain accounts/catalog |
 | `-AdoptExistingDemo` | explicitly adopt an integrity-checked legacy repository-local demo pair once |
-| `-KeepDemoPasswords` | preserve existing passwords instead of generating new ones for `alice` and `teacher1` |
+| `-KeepDemoPasswords` | preserve passwords instead of generating new ones for `admin`, `alice` and `teacher1` |
 | `-FrontendOrigin http://localhost:5173` | allow that exact origin through CORS (the frontend dev server) |
 | `-Port 8080` | different port |
 | `-NoRun` | prepare everything but do not start the server |
 
 Sample accounts: `admin`; teachers `teacher1`, `teacher2`; students `alice`, `bob` (advised by teacher1) and `carol`
 (advised by teacher2). On first setup, all six random passwords are printed once. On each subsequent launch,
-fresh random passwords for **alice** and **teacher1** are generated and displayed, their old sessions revoked,
+fresh random passwords for **admin**, **alice** and **teacher1** are generated and displayed, their old sessions revoked,
 and their username lockouts cleared. Plans, progress, profiles and other accounts are preserved; password hashes
 are stored, but plaintext passwords are not saved to a file or logged.
 Copy the displayed passwords for the demo. Use `-KeepDemoPasswords` to retain manually chosen passwords or to run
-against a custom development database without these two demo accounts. The switch does not suppress initial
+against a custom development database without these demo accounts. The switch does not suppress initial
 account creation on a fresh/reset database. `-NoRun` still performs password setup unless `-KeepDemoPasswords` is set.
 Do not use `-Reset` just to recover a password: it deletes local demo data.
 

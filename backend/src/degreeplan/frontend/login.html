@@ -13,9 +13,10 @@
     </header>
     <main class="dashboard login-page">
         <section class="progress-card">
-            <h2>Sign in</h2>
-            <p>Use the account provided by your administrator.</p>
-            <form id="loginForm">
+            <h2 id="loginHeading">Sign in</h2>
+            <p>Use your student account or the account provided by your administrator.</p>
+            <p id="registrationNotice" role="status"></p>
+            <form id="loginForm" method="post" action="/api/v1/auth/login">
                 <label for="username">Username</label>
                 <input id="username" name="username" autocomplete="username" maxlength="64" required autofocus>
                 <label for="password">Password</label>
@@ -23,6 +24,8 @@
                 <button type="submit">Sign In</button>
             </form>
             <p id="loginError" role="alert"></p>
+            <p><a id="registerLink" href="register.html" hidden>Create a student account</a></p>
+            <p><a href="login.html?next=/admin.html">Administrator sign in</a></p>
         </section>
     </main>
     <script type="module" src="app.js"></script>

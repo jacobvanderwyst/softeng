@@ -11,6 +11,49 @@ Check both services, trusted HTTPS and `/api/v1/health/ready`. Readiness checks 
 Configure external alerts for service/readiness failures, disk space, failed scheduled backups, stale backup sets, ERROR logs and unusual login/lockout activity. Alerts are an operator responsibility; a documented check is not a running monitor.
 API logs and audit logs are under production `logs\api`; service wrapper logs are split into API/proxy directories. Passwords, cookies and secret values must not be logged. Ship audit logs off-host; local privileged administrators can otherwise alter them.
 ## Account management
+### Student self-registration
+Student registration defaults to enabled in production and development. The public `register.html` page is linked
+from sign in whenever enabled. Use `install.ps1 -EnableRegistration:$false` with the normal verified install/upgrade
+arguments to disable it. Omitted flags preserve an existing stored choice; manifests without a field use the enabled
+default. A stored false from an earlier release remains false until explicitly reopened with `-EnableRegistration`.
+The protected manifest's boolean `RegistrationEnabled` is passed through the sanitized service environment;
+setting `REGISTRATION_ENABLED` in an unrelated caller shell does not override an installed production service.
+
+For manual non-service deployments, `REGISTRATION_ENABLED` controls availability and `REGISTRATION_RATE_LIMIT`
+defaults to `5 per minute;20 per hour` per client IP. The standard Windows wrapper uses the application default
+rate; changes require a reviewed service configuration change, not an untrusted caller environment override.
+Shared NAT users share an IP limit; production rate counters remain process-local unless a shared limiter store is configured.
+
+Signup accepts username, names, password and optional catalog program. The backend creates only a student profile,
+with no advisor, and records an audit event. It does not grant teacher/admin access or verify enrollment, email ownership
+or institutional identity. No approval/invitation/CAPTCHA/email-verification workflow is included. Use operator creation
+instead if your institution requires verified provisioning. Duplicate responses expose username availability, not
+account role or disabled status; keep rate limits and monitoring in place.
+
+After signup, use `users list --details` and `users update-profile` to review program/advisor assignments.
+Users sign in normally after creation; registration does not automatically replace an existing authenticated session.
+
+### Web administrator workspace
+Use **Administrator sign in** or `admin.html` with an existing admin account. The same secure authentication,
+server-side sessions and CSRF protections apply; public registration cannot create privileged accounts.
+Bootstrap the first production admin via `operator.ps1 users create` before exposing the site to a network.
+
+The workspace creates instructor (`teacher`) accounts with typed initial passwords and lists/searches instructors.
+Passwords are never returned by the API and form password fields are cleared after requests. Distribute credentials
+securely; instructors can change their password after login. Forced first-login change is not implemented.
+New instructors have no advisees until an operator assigns students with `users update-profile --advisor`.
+
+The degree-program editor manages code, name, total credits and required courses from the existing catalog.
+Import/create catalog courses through the controlled operator workflow first. Each program needs at least one
+valid required course and positive total credits in the web editor. Changing requirements affects existing plans'
+validation but preserves program IDs, personal plans, grades, progress and course records. A revision check rejects
+stale browser edits; reload explicitly before retrying. Catalog writes and their users-database audit record remain
+separate commits, so reload state after an error before resubmitting.
+
+Administrator management of catalog programs does not grant write access to personal student semester plans or
+grades. Teachers remain read-only for assigned students. Additional administrators are still operator-provisioned.
+
+### Operator account commands
 ```powershell
 & "$bin\operator.ps1" -CliArgs @('users','list','--details')
 & "$bin\operator.ps1" -CliArgs @('catalog','list')

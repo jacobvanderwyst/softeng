@@ -142,6 +142,19 @@ function Write-Json([string]$Path, $Value) {
     [IO.File]::WriteAllText($Path, ($Value | ConvertTo-Json -Depth 10), (New-Object Text.UTF8Encoding($false)))
 }
 
+function Get-RegistrationEnabled($Manifest) {
+    $setting = $Manifest.PSObject.Properties['RegistrationEnabled']
+    if ($null -eq $setting) { return $true }
+    if ($setting.Value -isnot [bool]) { throw 'RegistrationEnabled must be a boolean in the installation manifest.' }
+    return $setting.Value
+}
+
+function Resolve-RegistrationPolicy($Previous, [bool]$Requested, [bool]$Explicit) {
+    if ($Explicit) { return $Requested }
+    if ($null -eq $Previous) { return $true }
+    return Get-RegistrationEnabled $Previous
+}
+
 function Read-Install([string]$InstallRoot, [switch]$ServiceMode) {
     $root = Get-SafePath $InstallRoot
     $file = Get-SafePath (Join-Path $root 'installation.json')
@@ -150,6 +163,7 @@ function Read-Install([string]$InstallRoot, [switch]$ServiceMode) {
     $m = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
     if ($m.Version -ne 1 -or $m.Product -ne 'EduNavProduction' -or $m.InstallRoot -ne $root -or
         $m.ApiService -ne 'EduNavApi' -or $m.ProxyService -ne 'EduNavProxy') { throw 'Unrecognized installation manifest.' }
+    $null = Get-RegistrationEnabled $m
     $data = Get-SafePath $m.DataRoot
     Assert-Roots $root $data ''
     Assert-PrivateOwnership $data
@@ -199,6 +213,7 @@ function Invoke-Managed($Manifest, [string[]]$CliArgs, [string]$Users, [string]$
         $env:LOG_FORMAT = 'json'
         $env:PROXY_HOPS = '1'
         $env:COOKIE_SECURE = 'true'
+        $env:REGISTRATION_ENABLED = if (Get-RegistrationEnabled $Manifest) { 'true' } else { 'false' }
         $env:XDG_DATA_HOME = Join-Path $Manifest.DataRoot 'caddy'
         $env:XDG_CONFIG_HOME = Join-Path $Manifest.DataRoot 'caddy'
         Set-Location $Manifest.DataRoot
