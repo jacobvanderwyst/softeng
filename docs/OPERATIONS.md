@@ -79,6 +79,24 @@ Use version-1 JSON with required `version`, `programs`, `courses`, `prerequisite
 ```
 Dry run validates then rolls back. Different existing scalar values require `--update`; relations are additive and existing records are not deleted. Duplicate keys/codes/edges, dangling references, prerequisite cycles and oversized/invalid inputs are rejected. Reconcile imported counts/codes with the official source and run `db verify`. Existing grade summaries can change if catalog credits are explicitly updated; review such changes before import.
 This release does not automatically migrate arbitrary third-party schemas or copy demo data. Known-schema adoption requires explicit read-only schema validation and reviewed migration handling, not stamping an unknown schema to head.
+### Optional CJ/COMS foundation reference import
+The release includes `docs/examples/cj-coms-foundation.json`, transcribed from user-supplied Major: Foundation
+screenshots. It contains 7 CJ courses at 3 credits each and 4 COMS courses at 3 credits each.
+Programs are deliberately labeled partial/foundation-only; 21/12 are section subtotals, not full degree totals.
+Footnote text, prerequisites, general education, electives and the rest of each curriculum are unverified.
+No screenshot footnote number is interpreted as a prerequisite course ID.
+
+Production installation never seeds this reference automatically. If approved for your planning use, review it,
+back up the target, then use the standard importer:
+```powershell
+& "$bin\operator.ps1" -CliArgs @('catalog','import','C:\release\docs\examples\cj-coms-foundation.json','--dry-run')
+& "$bin\operator.ps1" -CliArgs @('catalog','import','C:\release\docs\examples\cj-coms-foundation.json')
+```
+Stop and reconcile existing `CJ`/`COMS` or course-code conflicts rather than using `--update` blindly.
+The demo's `dev sync-foundation-catalog` only fills missing reference entries and preserves existing matching
+program/scalar/requirement edits; it is not available in production. Controlled production imports retain the
+usual explicit conflict/update rules. Extend the plans only after obtaining the full official requirements.
+
 ## Backup and restore
 ```powershell
 & "$bin\manage.ps1" -Action Backup

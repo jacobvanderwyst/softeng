@@ -14,7 +14,7 @@ $install = @{
     WinSWSha256 = '<published-winsw-sha256>'
     CaddyPath = 'C:\tools\caddy.exe'
     CaddySha256 = '<published-caddy-sha256>'
-    WheelPath = 'C:\release\degreeplan_backend-1.3.0-py3-none-any.whl'
+    WheelPath = 'C:\release\degreeplan_backend-1.3.1-py3-none-any.whl'
     WheelSha256 = '<verified-release-wheel-sha256>'
 }
 .\deploy\windows\install.ps1 @install -Preflight

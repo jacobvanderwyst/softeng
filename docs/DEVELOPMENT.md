@@ -76,12 +76,17 @@ flask --app degreeplan.wsgi run                   # add --debug for auto-reload
 | --- | --- |
 | `db` | `upgrade`, `status`, `stamp --target users\|plans`, `backup --dest <folder>` |
 | `users` | `create`, `list`, `set-password`, `deactivate`, `activate`, `revoke-sessions` |
-| `dev` | `seed`, `refresh-demo-passwords`, `clear-saved-data --yes` (development only; absent in production) |
+| `dev` | `seed`, `refresh-demo-passwords`, `sync-foundation-catalog FILE`, `clear-saved-data --yes` (absent in production) |
 | `catalog` | `import FILE [--dry-run] [--update]` (validated additive version-1 JSON import) |
 
 Production also supports `db verify`, `db validate-schema --target users|plans --revision current`, profile
 assignment via `users update-profile`, and `users revoke-all-sessions --yes`; use the installed operator wrapper
 for production, not shell-exported development database URLs. See [OPERATIONS.md](OPERATIONS.md).
+
+The managed demo additionally runs `dev sync-foundation-catalog ..\docs\examples\cj-coms-foundation.json`.
+It adds missing screenshot-based CJ/COMS foundation records only; it does not replace existing matching program
+requirements or scalar edits. These partial catalogs contain 21/12 foundation credits, not verified full degree totals.
+Manual development setups may run that command explicitly. Production must use reviewed `catalog import` instead.
 
 ## 2. Tests and quality gates
 

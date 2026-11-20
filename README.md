@@ -79,6 +79,21 @@ For the demo, normal startup displays a freshly generated `admin` password; `-Ke
 Production's first admin must still be created with the protected operator CLI; no public admin registration or
 hardcoded administrator password is provided. Import catalog courses through the operator workflow before building requirements.
 
+## CJ and COMS foundation plans
+
+Demo startup adds the user-supplied screenshot catalogs from `docs/examples/cj-coms-foundation.json`:
+
+- **CJ — Criminal Justice:** 7 foundation courses, **21 foundation credits**.
+- **COMS — Communication Studies:** 4 foundation courses, **12 foundation credits**.
+
+These are explicitly labeled **Foundation only - partial**, not complete bachelor's-degree requirements.
+The screenshots do not supply the full curriculum or footnote text; prerequisites and footnote conditions are
+unverified, not inferred from superscript numbers. The 21/12 totals cover only the shown foundation sections.
+New startup loads add missing course/program codes without replacing existing matching records, program edits,
+requirements, saved plans, grades or accounts. They do not reassign students' programs. Select a major when
+registering/creating a plan, or edit its requirements in Administration after official requirements are supplied.
+Production does not automatically load these records; use the reviewed import workflow in `docs/OPERATIONS.md`.
+
 ## Build a production release
 
 Run `.\backend\scripts\build_release.ps1` from a prepared development checkout. It creates a wheel, deployment

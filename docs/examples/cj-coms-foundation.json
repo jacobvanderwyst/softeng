@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "programs": [
+    {"code": "CJ", "name": "Criminal Justice (Foundation only - partial)", "total_credits": 21},
+    {"code": "COMS", "name": "Communication Studies (Foundation only - partial)", "total_credits": 12}
+  ],
+  "courses": [
+    {
+      "code": "CRIJ 2361",
+      "title": "Introduction To The Criminal Justice System",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot. Source footnote 3 was not provided; prerequisites and other conditions are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "CRIJ 2362",
+      "title": "Criminology",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot. Source footnote 4 was not provided; prerequisites and other conditions are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "CRIJ 2364",
+      "title": "Fundamentals Of Criminal Law",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot. Source footnote 5 was not provided; prerequisites and other conditions are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "CRIJ 2365",
+      "title": "Correctional Systems and Practice",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot. Source footnote 5 was not provided; prerequisites and other conditions are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "CRIJ 2367",
+      "title": "Police Systems & Practices",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot. Source footnote 5 was not provided; prerequisites and other conditions are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "CRIJ 3378",
+      "title": "Introduction To Methods Of Research",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot. Source footnote 6 was not provided; prerequisites and other conditions are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "VCST 3350",
+      "title": "Victimology",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot. Source footnote 7 was not provided; prerequisites and other conditions are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "COMS 1361",
+      "title": "Public Speaking",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot. Source footnote 4 was not provided; prerequisites and other conditions are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "COMS 2331",
+      "title": "Introduction - Communication Theory & Research",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot; prerequisites and other conditions were not supplied and are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "COMS 2386",
+      "title": "Interpersonal Communication",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot. Source footnote 3 was not provided; prerequisites and other conditions are unverified. This is not a complete degree audit."
+    },
+    {
+      "code": "COMS 4381",
+      "title": "Communication Theory",
+      "credits": 3,
+      "description": "Major: Foundation. Transcribed from the supplied screenshot; prerequisites and other conditions were not supplied and are unverified. This is not a complete degree audit."
+    }
+  ],
+  "prerequisites": [],
+  "requirements": [
+    {"program": "CJ", "course": "CRIJ 2361"},
+    {"program": "CJ", "course": "CRIJ 2362"},
+    {"program": "CJ", "course": "CRIJ 2364"},
+    {"program": "CJ", "course": "CRIJ 2365"},
+    {"program": "CJ", "course": "CRIJ 2367"},
+    {"program": "CJ", "course": "CRIJ 3378"},
+    {"program": "CJ", "course": "VCST 3350"},
+    {"program": "COMS", "course": "COMS 1361"},
+    {"program": "COMS", "course": "COMS 2331"},
+    {"program": "COMS", "course": "COMS 2386"},
+    {"program": "COMS", "course": "COMS 4381"}
+  ]
+}

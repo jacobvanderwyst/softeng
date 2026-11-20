@@ -87,7 +87,7 @@ foreach ($file in @('WINDOWS_SERVER_QUICKSTART.md', 'WINDOWS11_QUICKSTART.md', '
     Copy-Item -LiteralPath (Join-Path $repo "docs\$file") -Destination $docs
 }
 $null = New-Item -ItemType Directory -Path (Join-Path $docs 'examples')
-foreach ($file in @('catalog-v1.example.json', 'api-client.js', 'import-catalog.sql')) {
+foreach ($file in @('catalog-v1.example.json', 'cj-coms-foundation.json', 'api-client.js', 'import-catalog.sql')) {
     Copy-Item -LiteralPath (Join-Path $repo "docs\examples\$file") -Destination (Join-Path $docs 'examples')
 }
 Copy-Item -LiteralPath (Join-Path $repo 'README.md') -Destination $destination

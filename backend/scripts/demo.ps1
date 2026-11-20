@@ -253,6 +253,11 @@ try {
         }
     }
 
+    Write-Step 'Adding missing CJ and COMS foundation reference catalogs (existing edits kept)'
+    $referenceCatalog = Join-Path $backend '..\docs\examples\cj-coms-foundation.json'
+    & $venvPython -m flask --app degreeplan.wsgi dev sync-foundation-catalog $referenceCatalog
+    if ($LASTEXITCODE -ne 0) { throw 'Could not load the foundation reference catalog. Existing edits were not overwritten.' }
+
     if ($ClearSavedData -and -not $Reset) {
         & $venvPython -m degreeplan.devtools.demo_guard --check
         if ($LASTEXITCODE -ne 0) { throw 'Refusing to clear data without verified demo ownership.' }

@@ -22,6 +22,17 @@ Existing `backend\instance` databases without the new ownership marker are delib
 ```
 The launcher validates a complete SQLite pair before marking it as demo-owned. It rejects inherited database URLs and `_FILE` redirects, ignores `backend\.env`, pins database targets, and rejects links/junctions/hard-linked database files.
 ## Presentation sequence
+### CJ and COMS reference majors
+Every normal startup adds missing catalog entries from the supplied foundation screenshots, without resetting data.
+Criminal Justice has the seven shown courses (21 credits); Communication Studies has the four shown courses
+(12 credits). Choose their explicitly partial foundation programs in registration or the New Plan degree selector.
+Course detail descriptions note unresolved screenshot footnotes; no prerequisites were invented.
+The full major requirements, general education/electives and full degree totals were not provided. Completion of
+these partial foundation plans is not proof of degree completion. Existing records/requirements matching the
+reference codes are preserved on later startups. Renaming a reference code makes its original code eligible to
+be added again; use stable `CJ`/`COMS` codes when completing/editing these programs.
+
+### Student and administrator workflows
 For the administration demonstration, choose **Administrator sign in** and use `admin` with its displayed generated
 password. Create an instructor account, then create a degree program and choose its required courses. Edit/reload
 the program to show persistence. The editor manages catalog requirements, not personal student semester plans.

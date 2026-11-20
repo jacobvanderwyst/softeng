@@ -149,3 +149,19 @@ def apply(conn: Connection, data: Catalog, *, update: bool) -> dict[str, int]:
                 conn.execute(sa.insert(table).values(**values))
                 counts["edges_added"] += 1
     return counts
+
+
+def add_missing_reference(conn: Connection, data: Catalog) -> dict[str, int]:
+    """Demo-only caller: add reference records but never overwrite edited programs/requirements."""
+    programs = set(conn.execute(sa.select(t.programs.c.code)).scalars())
+    courses = set(conn.execute(sa.select(t.courses.c.code)).scalars())
+    new_programs = {program.code for program in data.programs} - programs
+    new_courses = {course.code for course in data.courses} - courses
+    missing = Catalog(
+        version=data.version,
+        programs=[program for program in data.programs if program.code in new_programs],
+        courses=[course for course in data.courses if course.code in new_courses],
+        requirements=[edge for edge in data.requirements if edge.program in new_programs],
+        prerequisites=[edge for edge in data.prerequisites if edge.course in new_courses],
+    )
+    return apply(conn, missing, update=False)

@@ -18,6 +18,10 @@ def copied_demo(tmp_path):
     backend = tmp_path / "backend"
     (backend / "scripts").mkdir(parents=True)
     shutil.copyfile(SCRIPT, backend / "scripts" / "demo.ps1")
+    reference = SCRIPT.parents[2] / "docs" / "examples" / "cj-coms-foundation.json"
+    examples = tmp_path / "docs" / "examples"
+    examples.mkdir(parents=True)
+    shutil.copyfile(reference, examples / reference.name)
     shutil.copytree(SCRIPT.parents[1] / "src", backend / "src",
                     ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
     # Reuse trusted test dependencies, not the editable application's source, in an isolated venv.
@@ -63,7 +67,7 @@ def test_actual_demo_setup_clear_and_reset_stay_in_owned_copy(copied_demo):
     with closing(sqlite3.connect(instance / "plans.sqlite3")) as conn:
         for table in ("plans", "plan_courses", "plan_semesters", "student_course_progress"):
             assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0  # noqa: S608
-        assert conn.execute("SELECT COUNT(*) FROM courses").fetchone()[0] == 6
+        assert conn.execute("SELECT COUNT(*) FROM courses").fetchone()[0] == 17
     launch(backend, "-Reset")
     with closing(sqlite3.connect(instance / "users.sqlite3")) as conn:
         assert conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 6

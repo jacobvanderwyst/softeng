@@ -413,6 +413,27 @@ def dev_seed() -> None:
         click.echo(f"  {username:<10} {password}")
 
 
+@dev_cli.command("sync-foundation-catalog")
+@click.argument("file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+def sync_foundation_catalog(file: Path) -> None:
+    """Add missing screenshot foundation catalogs without replacing saved edits or student data."""
+    if context.settings().is_production:
+        raise click.ClickException(
+            "Demo reference synchronization is disabled in production; use reviewed catalog import."
+        )
+    conn = plans_conn()
+    try:
+        counts = catalog_import.add_missing_reference(conn, catalog_import.load(file))
+        conn.commit()
+    except (ValueError, OSError, sa.exc.SQLAlchemyError, RecursionError) as exc:
+        conn.rollback()
+        raise click.ClickException("Reference catalog rejected; no catalog changes saved.") from exc
+    if any(counts.values()):
+        audit.record(users_conn(), "dev.foundation_catalog.sync", actor_role="cli", detail=counts)
+        users_conn().commit()
+    click.echo("Foundation catalog additions: " + str(counts) + ". Existing records and program edits kept.")
+
+
 @dev_cli.command("clear-saved-data")
 @click.option("--yes", is_flag=True, help="Confirm deletion of ALL students' saved plans and progress.")
 def clear_demo_saved_data(yes: bool) -> None:
