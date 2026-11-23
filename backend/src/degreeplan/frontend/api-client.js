@@ -144,12 +144,17 @@ export const api = {
     },
   },
 
-  progress: {
+    progress: {
     list: (studentId) => request("GET", `/progress${qs({ student_id: studentId })}`),
     summary: (studentId) => request("GET", `/progress/summary${qs({ student_id: studentId })}`),
-    // Omit grade to preserve it; explicit null clears it. Status changes retain saved grades.
-    set: (courseId, status, grade = undefined) =>
-      request("PUT", `/progress/${courseId}`, { status, ...(grade === undefined ? {} : { grade }) }),
+
+    // Students can update course status, but not grades.
+    set: (courseId, status) =>
+      request("PUT", `/progress/${courseId}`, { status }),
+
+    // Teachers and admins can update authorized students' grades.
+    setGrade: (studentId, courseId, grade) =>
+      request("PUT", `/progress/${courseId}/grade${qs({ student_id: studentId })}`, { grade }),
   },
   plans: {
     /** Students: their own plans. Teachers/admins: pass the student's id. */

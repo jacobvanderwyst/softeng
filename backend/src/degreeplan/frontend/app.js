@@ -332,24 +332,30 @@ function renderDegreeList() {
       select.setAttribute("aria-label", `Student-reported status for ${course.code}`);
       select.addEventListener("change", () => perform(
         () => api.progress.set(course.id, select.value), "Course progress saved."));
-      actions.append(select);
-      const gradeControl = node("div", "degree-grade-control");
-      const grade = node("select", "degree-grade-select"); grade.id = `grade-${course.id}`;
-      const gradeLabel = node("label", "", "Self-reported grade"); gradeLabel.htmlFor = grade.id;
+            actions.append(select);
+      actions.append(
+        node("span", "degree-grade-readonly",
+          `Grade: ${savedGrade ?? "None"}`)
+      );
+         } else if (state.user?.role === "teacher" || state.user?.role === "admin") {
+      const grade = node("select", "degree-grade-select");
+      grade.setAttribute("aria-label", `Grade for ${course.code}`);
       grade.append(option("", "No grade"));
       for (const value of GRADES) grade.append(option(value, value));
       grade.value = savedGrade ?? "";
-      grade.setAttribute("aria-label", `Self-reported grade for ${course.code}`);
-      grade.disabled = state.busy;
+      grade.disabled = state.busy || !state.studentId;
+
       grade.addEventListener("change", () => perform(
-        () => api.progress.set(course.id, statusOf(course.id), grade.value || null), "Course grade saved."));
-      gradeControl.append(gradeLabel, grade);
-      if (statusOf(course.id) !== "Completed") {
-        gradeControl.append(node("small", "", "Saved grade excluded from GPA until Completed."));
-      }
-      actions.append(gradeControl);
-    } else {
-      actions.append(node("span", "degree-grade-readonly", `Self-reported grade: ${savedGrade ?? "None"}`));
+        () => api.progress.setGrade(
+          state.studentId,
+          course.id,
+          grade.value || null
+        ),
+        "Course grade saved."
+      ));
+
+      actions.append(node("span", "", "Grade:"));
+      actions.append(grade);
     }
     card.append(info, actions); list.append(card);
   }

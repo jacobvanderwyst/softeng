@@ -34,6 +34,29 @@ def set_status(conn: Connection, student_id: int, course_id: int, status: str, n
         conn.execute(sa.insert(student_course_progress).values(
             student_id=student_id, course_id=course_id, **values
         ))
+def set_grade(conn: Connection, student_id: int, course_id: int,
+              grade: str | None, now: int) -> None:
+    """Update a grade without changing the course completion status."""
+    where = sa.and_(
+        student_course_progress.c.student_id == student_id,
+        student_course_progress.c.course_id == course_id
+    )
+    updated = conn.execute(
+        sa.update(student_course_progress)
+        .where(where)
+        .values(grade=grade, updated_at=now)
+    )
+    if updated.rowcount == 0:
+        conn.execute(
+            sa.insert(student_course_progress).values(
+                student_id=student_id,
+                course_id=course_id,
+                status="Not Started",
+                grade=grade,
+                updated_at=now
+            )
+        )
+
 
 
 def summary(conn: Connection, student_id: int) -> dict[str, Any]:

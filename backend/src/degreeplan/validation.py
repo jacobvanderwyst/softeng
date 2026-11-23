@@ -118,6 +118,9 @@ class CourseProgressIn(_Strict):
     grade: Literal["A", "B", "C", "D", "F"] | None = None
 
 
+class CourseGradeIn(_Strict):
+    grade: Literal["A", "B", "C", "D", "F"] | None
+
 def parse_body(model: type[T]) -> T:
     """Parse and validate the JSON body (pydantic errors become 422 responses)."""
     if not request.is_json:

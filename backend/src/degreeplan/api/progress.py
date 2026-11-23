@@ -10,7 +10,7 @@ from ..repositories import catalog, people
 from ..repositories import progress as progress_repo
 from ..security.auth import login_required, require_auth
 from ..services import access
-from ..validation import CourseProgressIn, parse_body
+from ..validation import CourseGradeIn, CourseProgressIn, parse_body
 from .utils import int_arg
 
 bp = Blueprint("progress", __name__, url_prefix="/progress")
@@ -56,6 +56,9 @@ def set_progress(course_id: int):
     if not student:
         raise ForbiddenError("No student record is linked to this account.")
     body = parse_body(CourseProgressIn)
+    if "grade" in body.model_fields_set:
+        raise ForbiddenError("Students cannot change grades.")
+
     if not catalog.get_course(plans_conn(), course_id):
         raise ValidationError("Unknown course_id.")
     progress_repo.set_status(plans_conn(), student["id"], course_id, body.status, clock.now(),
@@ -71,4 +74,50 @@ def set_progress(course_id: int):
     users_conn().commit()
     item = next(item for item in progress_repo.list_for_student(plans_conn(), student["id"])
                 if item["course_id"] == course_id)
+    return jsonify(item)
+
+@bp.put("/<int:course_id>/grade")
+@login_required
+def update_grade(course_id: int):
+    auth = require_auth()
+
+    if auth.role not in ("teacher", "admin"):
+        raise ForbiddenError("Only teachers and administrators can update grades.")
+
+    student_id = int_arg("student_id", 0, 1, 2**31)
+    student = people.student_by_id(users_conn(), student_id)
+
+    level = access.access_to_student(
+        users_conn(),
+        user_id=auth.user_id,
+        role=auth.role,
+        student=student,
+    )
+
+    if level is None:
+        raise NotFoundError("Student not found.")
+
+    body = parse_body(CourseGradeIn)
+
+    if not catalog.get_course(plans_conn(), course_id):
+        raise ValidationError("Unknown course_id.")
+
+    progress_repo.set_grade(
+        plans_conn(), student_id, course_id, body.grade, clock.now()
+    )
+    plans_conn().commit()
+
+    audit.record(
+        users_conn(),
+        "progress.grade_update",
+        target_type="student",
+        target_id=student_id,
+        detail={"course_id": course_id, "grade": body.grade},
+    )
+    users_conn().commit()
+
+    item = next(
+        item for item in progress_repo.list_for_student(plans_conn(), student_id)
+        if item["course_id"] == course_id
+    )
     return jsonify(item)
